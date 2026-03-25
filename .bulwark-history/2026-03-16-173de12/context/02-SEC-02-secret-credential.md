@@ -167,7 +167,7 @@ Client-side error listeners registered only if `NEXT_PUBLIC_SENTRY_DSN` is set. 
 
 **`.mcp.json:8`:**
 ```json
-"SOLANA_PRIVATE_KEY": "2zJgKnGrwgkcDLks6uJYcMWThWYHUCp1RuShDGajeutHvp7uWALoAwtSJEnXb2sx2GeizxrApX4QZcXoRwUC2FSS"
+"SOLANA_PRIVATE_KEY": "[REDACTED-DEVNET-PRIVATE-KEY]"
 ```
 
 This is a base58-encoded Solana private key committed to git since at least commit `53ca01b` ("feat: add 24/7 crank runner for Railway + SVK security tooling"). The key appears in the `solana-mcp` MCP server configuration. Even if this is a devnet-only key, it is permanently in git history and exposed to anyone with repo access (current or future).

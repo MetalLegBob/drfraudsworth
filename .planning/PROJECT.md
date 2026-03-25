@@ -8,33 +8,23 @@ The frontend is an explorable steampunk factory scene where 6 clickable machines
 
 ## Current State
 
-The complete protocol (7 on-chain programs + frontend) is live on Solana devnet, fully security-hardened across 3 independent audits (SOS adversarial, BOK formal verification, VulnHunter variant analysis). All 57 v1.3 hardening requirements are satisfied. The frontend is polished with steampunk component kit, real-time webhook+SSE data pipeline, mobile responsive layout with deep-link wallet adapter, and environment-aware mainnet configuration. Documentation is rewritten code-first. The protocol is ready for v1.4: final devnet lifecycle test and mainnet deployment.
+**LIVE ON SOLANA MAINNET** since 2026-03-25. 14 milestones shipped (v0.1-v1.4), 104 phases, 349 plans, ~40K LOC Rust + ~98K LOC TypeScript. Security-hardened across 5 audits (SOS adversarial, BOK formal verification, VulnHunter variant analysis, Bulwark off-chain x2). All 6 active programs OtterSec verified. Public repo: github.com/MetalLegBob/drfraudsworth.
+
+**Mainnet deployment (2026-03-25):**
+- AMM: `5JsSB2MRxPr3mBc3j1GfuoEVoSxfNpBJMHHQFNqK5Fm2`
+- Transfer Hook: `CiQPWB3VhKbMscGHkVstHRp8WdqjbxfWawjMZraTaVVP`
+- Tax Program: `43fZ3VVxqZcCLGhbcvMXfCzqMiGXib2WCHgzLUw5Cto1`
+- Epoch Program: `4HeqEoSyfYpeC2goFLj9eHgkKqomaK7JBLT1MhovKZBB`
+- Staking: `12b3h8WRioyvYZqpaqLfNfqnKLz8nz4LnMbAbFNbpNS2`
+- Conversion Vault: `5uawHrz4MCRNKHoEhQrWZ2PoTFCKEFqoFBoBv7Qezhfn`
+- Mints: CRIME=`cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc`, FRAUD=`FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5`, PROFIT=`pRoFiTj36haRD5sG2Neqib9KoSrtdYMGrM7SEkZetfR`
+- Frontend: https://fraudsworth.fun
+- Crank: Railway mainnet, 24/7 epoch advancement + Carnage + rent reclaim
+- Governance: Squads 2-of-3 multisig, 1hr timelock, 11 authorities transferred
 
 **Shipped milestones:**
-- ~~v0.1: Documentation Audit~~ SHIPPED 2026-02-03
-- ~~v0.2: AMM program~~ SHIPPED 2026-02-04
-- ~~v0.3: Transfer Hook program~~ SHIPPED 2026-02-06
-- ~~v0.4: Tax program~~ SHIPPED 2026-02-06
-- ~~v0.5: Epoch/VRF program~~ SHIPPED 2026-02-06
-- ~~v0.6: Staking/Yield system~~ SHIPPED 2026-02-09
-- ~~v0.7: Integration + Devnet~~ SHIPPED 2026-02-15
-- ~~v0.8: Frontend Tech Foundations~~ SHIPPED 2026-02-18
-- ~~v0.9: Protocol Hardening & Smart Routing~~ SHIPPED 2026-02-20
-- ~~v1.0: Frontend Design & Interactive Factory~~ SHIPPED 2026-02-24
-- ~~v1.1: Modal Mastercraft, Docs & Audio~~ SHIPPED 2026-03-02
-- ~~v1.2: Bonding Curves & Launch Page~~ SHIPPED 2026-03-07
-- ~~v1.3: Protocol Hardening & Polish~~ SHIPPED 2026-03-12
-
-**Devnet deployment (Phase 69, 2026-02-27):**
-- AMM: `5ANTHFtgPgH1fUMywALtrpmT7uMHfWnFbz7hxY3tLzMj`
-- Transfer Hook: `CmNyuLdMeggHS2dKBhzPWHdeTEcpKg4uTevT5tBcBsce`
-- Tax Program: `DRjNCjt4tfTisSJXD1VrAduKbgA7KHuGPoYwxrUQN8uj`
-- Epoch Program: `G6dmJTdC36VRqqi57QhWH444Ju7ieCzHZW9yhH7TpUhz`
-- Staking: `EZFeU613CfqzNcEumE293QDmimRHyP2ZNWcbTgCQRZSu`
-- Conversion Vault: `6WwVAc12B5x8gukgNyXa4agUyvi9PxdYTdPdnb9qEWFL`
-- Mints: CRIME=`8NEgQvt8`, FRAUD=`76ddoHyn`, PROFIT=`7X6xxGxz`
-- Frontend: https://dr-fraudsworth-production.up.railway.app
-- Crank runner on Railway: 24/7 epoch advancement with atomic Carnage bundling
+- ~~v0.1-v1.3~~ (documentation through hardening) SHIPPED 2026-02-03 to 2026-03-12
+- ~~v1.4: Pre-Mainnet~~ SHIPPED 2026-03-25 -- mainnet deploy, governance, open-source, OtterSec verified
 
 ## Core Value
 
@@ -191,33 +181,41 @@ Real SOL yield from real trading friction -- not ponzinomics. Every on-chain pro
 - ✓ Dead code removal, error map expansion, quote-engine BigInt conversion, cross-crate serialization test -- v1.3
 - ✓ All SOS/BOK/VulnHunter audit findings closed, 57/57 requirements audit-verified -- v1.3
 
+**v1.4 Pre-Mainnet:**
+- ✓ Canonical deployment.json config system with generate-constants.ts and verify.ts -- v1.4
+- ✓ 7-phase deploy-all.sh pipeline with binary verification, safety gates, mainnet preflight -- v1.4
+- ✓ Arweave token metadata (logos + JSON) for all 3 mints, permanent URIs -- v1.4
+- ✓ Bonding curve devnet deadline feature flag (~30 min) + clean-room full deploy + graduation -- v1.4
+- ✓ Protocol E2E: all 8 swap pairs, tax verification, VRF epochs, Carnage, staking lifecycle -- v1.4
+- ✓ Squads 2-of-3 multisig on devnet + mainnet, 11 authorities transferred, timelocked upgrade proven -- v1.4
+- ✓ Mainnet deployment checklist validated by fresh devnet deploy (25.54 SOL actual cost) -- v1.4
+- ✓ Production infrastructure: Cloudflare DNS, Railway mainnet services, Helius mainnet RPC -- v1.4
+- ✓ Nextra documentation: every page production-accurate with illustrated diagrams -- v1.4
+- ✓ Protocol deployed to Solana mainnet: 6 programs, 3 vanity tokens, bonding curves graduated -- v1.4
+- ✓ Off-chain security hardening: 7 Bulwark findings closed (RPC proxy, webhook, supply chain, rate limiting) -- v1.4
+- ✓ Open-source release at MetalLegBob/drfraudsworth with 5-pass sanitization -- v1.4
+- ✓ All 6 active programs OtterSec verified on Solscan -- v1.4
+- ✓ 61/61 requirements functionally satisfied (audit: tech_debt) -- v1.4
+
 ### Active
 
-## Current Milestone: v1.4 Pre-Mainnet
-
-**Goal:** Complete dress rehearsal — fresh devnet deploy as exact mainnet replica, test both bonding curve pathways (failure + success), Squads multisig authority transfer, exhaustive E2E testing, and production-ready documentation. By the end, mainnet deploy is just "push the button."
-
-**Target features:**
-- Deploy infrastructure: canonical deployment.json config system, credential rotation, deploy pipeline generates + verifies config
-- Token metadata: Arweave upload with logos, website, X link for all 3 mints
-- Bonding curve devnet deadline feature flag (~30 min for testing)
-- Pathway 1: Failure path — partial deploy, buy/sell, let expire, refund UI verification
-- Pathway 2: Full clean-room deploy — all 7 programs, mints, pools, ALT, whitelist, crank from scratch
-- Pathway 2: Graduation + full E2E — fill curves, graduate, trading, taxes, epochs, VRF, carnage, staking, yield
-- Squads 2-of-3 multisig on devnet — authority transfer, timelocked upgrade test, documented mainnet procedure
-- Mainnet deployment checklist — exhaustive, nothing missed
-- Nextra docs rewrite — page by page, illustrated diagrams, production-accurate
-- Fix DEPLOY-GAP-01 (BcAdminConfig pipeline automation)
-
-**Hands-on protocol:** Every wave manually verified before starting and after completion. No autonomous decisions.
+(No active milestone — all development milestones complete)
 
 ### Future
 
-(None — v1.4 is the final pre-mainnet milestone)
+**Post-Launch Operations (v2 scope):**
+- Progressive timelock extension (1hr -> 24hr after stability period)
+- Immunefi bug bounty program
+- External audit funded from protocol revenue
+- Jupiter routing integration (Tax Program CPI publishing)
+- Protocol-owned arbitrage (Carnage Fund capture)
+- USDC pool pairs (CRIME/USDC, FRAUD/USDC)
 
 ### Backlog
 
-(Cleared — all items in Active or Out of Scope)
+- 3 ignored LiteSVM tests (is_reversed bug, test-only)
+- Refund path (CURVE-04/05) never frontend-tested
+- E2E-02 requirement text says 75/24/1, actual on-chain is 71/24/5
 
 ### Out of Scope
 
@@ -246,11 +244,13 @@ Real SOL yield from real trading friction -- not ponzinomics. Every on-chain pro
 **Shipped v1.1** with 406 files changed (+44,554/-13,579 lines), 9 phases, 27 plans, 156 commits. Steampunk component kit (9 primitives), chart overhaul, audio system, devnet relaunch with Conversion Vault.
 **Shipped v1.2** with 193 files changed (+39,747/-1,091 lines), 8 phases, 25 plans, 134 commits. 7th on-chain program (dual bonding curves), launch page frontend, 13.5M proptest iterations, 28/28 requirements audit-verified.
 **Shipped v1.3** with 972 files changed (+163,086/-46,481 lines), 16 phases, 45 plans, 211 commits. Full security hardening across 3 audits (SOS/BOK/VulnHunter), 57/57 requirements verified, documentation rewritten, CI/CD pipeline, mobile responsive + wallet adapter.
+**Shipped v1.4** with 685 files changed (+231,317/-10,609 lines), 16 phases, 58 plans, 324 commits. Mainnet deployment, Squads governance, Nextra docs, off-chain hardening, open-source release, OtterSec verification. 14 days (2026-03-12 → 2026-03-25).
 
 Tech stack: Anchor 0.32.1/Rust for on-chain programs, Token-2022 standard, Switchboard VRF On-Demand.
 Frontend stack: Next.js 16.1.6 + Turbopack + Tailwind CSS v4 + @solana/wallet-adapter-react + @coral-xyz/anchor client + TradingView lightweight-charts v5. Backend: Railway (Next.js API routes + Postgres) + Helius webhooks for OHLCV indexing + Drizzle ORM.
-Total: 7 on-chain programs (~39,094 LOC Rust), ~88,365 LOC TypeScript/TSX, ~10,184 LOC CSS, 14 specification documents, devnet continuous runner.
-Frontend deployed at: https://dr-fraudsworth-production.up.railway.app
+Total: 6 active on-chain programs (~40,128 LOC Rust), ~97,567 LOC TypeScript/TSX, 14 specification documents.
+Frontend deployed at: https://fraudsworth.fun
+Public repo: https://github.com/MetalLegBob/drfraudsworth
 
 **14-Document Specification Set:**
 - DrFraudsworth_Overview.md
@@ -366,22 +366,23 @@ Frontend deployed at: https://dr-fraudsworth-production.up.railway.app
 
 Every program authority, its type, current holder, and burn plan.
 
-| Program | Authority Type | Mechanism | Current Holder | Burn Plan |
-|---------|---------------|-----------|----------------|-----------|
-| AMM | Upgrade Authority | BPF Loader ProgramData | Deployer wallet | Transfer to 2-of-3 Squads multisig (v1.4). Never burn. |
-| AMM | Admin PDA (AdminConfig) | has_one = admin | Deployer wallet | Transfer to Squads multisig. Burn when ready, no timeline. |
-| Transfer Hook | Upgrade Authority | BPF Loader ProgramData | Deployer wallet | Transfer to Squads multisig (v1.4). Never burn. |
-| Transfer Hook | Whitelist Authority (WhitelistAuthority PDA) | authority = Some(signer) | Deployer wallet | Transfer to Squads multisig. Burn when whitelist is final. |
-| Tax Program | Upgrade Authority | BPF Loader ProgramData | Deployer wallet | Transfer to Squads multisig (v1.4). Never burn. |
-| Epoch Program | Upgrade Authority | BPF Loader ProgramData | Deployer wallet | Transfer to Squads multisig (v1.4). Never burn. |
-| Staking | Upgrade Authority | BPF Loader ProgramData | Deployer wallet | Transfer to Squads multisig (v1.4). Never burn. |
-| Conversion Vault | Upgrade Authority | BPF Loader ProgramData | Deployer wallet | Transfer to Squads multisig (v1.4). Never burn. |
-| Bonding Curve | Upgrade Authority | BPF Loader ProgramData | Deployer wallet | Transfer to Squads multisig (v1.4). Never burn. |
-| Bonding Curve | Admin PDA (BcAdminConfig) | has_one = authority | Deployer wallet | Transfer to Squads multisig. Burn when curves graduated. |
+| Program | Authority Type | Mechanism | Current Holder | Status |
+|---------|---------------|-----------|----------------|--------|
+| AMM | Upgrade Authority | BPF Loader ProgramData | Squads vault | Transferred (v1.4) |
+| AMM | Admin PDA (AdminConfig) | has_one = admin | Squads vault | Transferred (v1.4). Retained for future features. |
+| Transfer Hook | Upgrade Authority | BPF Loader ProgramData | Squads vault | Transferred (v1.4) |
+| Transfer Hook | Whitelist Authority | authority = Some(signer) | Squads vault | Transferred (v1.4). Not burned -- retained for flexibility. |
+| Transfer Hook | Metadata Update Authority (x3) | Metaplex | Squads vault | Transferred (v1.4) |
+| Tax Program | Upgrade Authority | BPF Loader ProgramData | Squads vault | Transferred (v1.4) |
+| Epoch Program | Upgrade Authority | BPF Loader ProgramData | Squads vault | Transferred (v1.4) |
+| Staking | Upgrade Authority | BPF Loader ProgramData | Squads vault | Transferred (v1.4) |
+| Conversion Vault | Upgrade Authority | BPF Loader ProgramData | Squads vault | Transferred (v1.4) |
+| Bonding Curve | Program Account | — | CLOSED | Program closed post-graduation (rent reclaimed ~4.73 SOL) |
+| CRIME/FRAUD/PROFIT | Mint Authority | — | BURNED | Irreversible. Supply fixed. |
 
-**Lifecycle strategy:** All authorities (upgrade + admin PDAs) transfer to a single 2-of-3 Squads multisig with 48-72hr timelock (v1.4 scope, MN-01). Upgrade authorities are never burned -- preserves ability to fix bugs via timelocked upgrade. Admin PDAs can be burned individually when their function is no longer needed (e.g., BcAdminConfig after both curves graduate).
+**Current state:** All 11 authorities held by Squads 2-of-3 multisig vault with 1hr (3600s) timelock. Mint authorities permanently burned. Bonding Curve program closed.
 
-**No emergency pause:** Decided against admin-triggered pause mechanism. An admin pause key would be perceived as a rug pull vector by the community. Program upgrade via timelocked multisig is the safety net for critical bugs.
+**No emergency pause:** Admin pause perceived as rug pull vector. Timelocked multisig upgrade is the safety net.
 
 ---
-*Last updated: 2026-03-12 after v1.4 milestone start*
+*Last updated: 2026-03-25 after v1.4 milestone*

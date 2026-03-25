@@ -2,12 +2,12 @@
 # Run each Kani harness individually with a 5-minute timeout
 # Uses background process + kill pattern (macOS compatible)
 
-source /Users/mlbob/.cargo/env
-export PATH="/Users/mlbob/.cargo/bin:/Users/mlbob/.local/share/solana/install/active_release/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-cd "/Users/mlbob/Projects/Dr Fraudsworth/.bok/worktree"
+source $HOME/.cargo/env
+export PATH="$HOME/.cargo/bin:$HOME/.local/share/solana/install/active_release/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+cd "/path/to/project/.bok/worktree"
 
 TIMEOUT_SECS=300  # 5 minutes
-RESULTS_DIR="/Users/mlbob/Projects/Dr Fraudsworth/.bok/results"
+RESULTS_DIR="/path/to/project/.bok/results"
 
 run_harness() {
     local package=$1

@@ -2,6 +2,61 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v1.4 — Pre-Mainnet
+
+**Shipped:** 2026-03-25
+**Phases:** 16 | **Plans:** 58 | **Commits:** 324
+
+### What Was Built
+- Canonical deployment infrastructure: deployment.json config system, generate-constants.ts, verify.ts, 7-phase deploy-all.sh pipeline
+- Mainnet credentials and preflight safety: isolated wallets, env separation, binary hash verification, balance checks
+- Arweave token metadata: permanent logos + JSON for all 3 tokens on Arweave via Irys
+- Bonding curve testing: devnet deadline feature flag, clean-room deploy, both curves filled + graduated
+- Protocol E2E: all 8 swap pairs, tax verification (71/24/5), VRF epochs, Carnage, staking lifecycle, 9hr soak
+- Squads governance: 2-of-3 multisig, 11 authorities transferred, 1hr timelock, upgrade round-trip proven
+- Production infrastructure: Cloudflare DNS (fraudsworth.fun), Railway mainnet services, Helius mainnet RPC + webhook
+- Nextra documentation: every page production-accurate with illustrated SVG diagrams
+- Mainnet deployment: 6 programs + 3 vanity tokens, bonding curves graduated, crank running 10+ days
+- Off-chain hardening: 7 Bulwark findings closed (RPC proxy, webhook decode, supply chain, rate limiting)
+- Open-source release: MetalLegBob/drfraudsworth with 5-pass secret sanitization
+- OtterSec verified builds: all 6 active programs verified on Solscan
+
+### What Worked
+- **Stage-based deployment pipeline**: Stages 0-7 decomposition made mainnet deployment repeatable and auditable. Each stage is independently runnable with verification.
+- **Devnet dress rehearsal before mainnet**: Phases 94-98 were an exact mainnet rehearsal. Every pitfall discovered on devnet (25.54 SOL cost, zsh compat, Solana CLI v3 changes, two-pass deploy unnecessary) was documented and avoided on mainnet.
+- **Pitfall documentation during execution**: WARN blocks in checklist captured 15 pitfalls with 18 references. These prevented several costly mistakes during mainnet deploy.
+- **Authority transfer scripts with verification**: transfer-authority.ts + verify-authority.ts made the most dangerous operation (irreversible authority transfer) mechanically safe. Two critical bugs caught and fixed during devnet testing.
+- **Fresh repo for open-source**: Starting from rsync copy with sanitization (not forking git history) eliminated all historical secret exposure. 5-pass verification with multiple tools caught everything.
+- **User review checkpoints**: 3-pass manual user verification before public push caught 2 additional redactions that automated tools missed.
+
+### What Was Inefficient
+- **REQUIREMENTS.md checkboxes never ticked (again)**: Fourth consecutive milestone with this problem. All 61 items still `[ ]` despite work being complete. The traceability table is useless without per-plan updates.
+- **SUMMARY.md files not written for 10 plans**: Phases 101, 102, and 94-02 were executed without summary files. Historical record incomplete. Execution outside GSD workflow loses the tracking benefits.
+- **VERIFICATION.md missing for 5 phases**: Phases 94, 99, 100, 101, 102 have no verification. Late-added phases (100-104) skipped the verification step entirely.
+- **Phase 94-02 superseded but not formally closed**: Plan existed, was never executed, and was implicitly replaced by Phase 95. Should have been explicitly marked as superseded in the roadmap.
+- **Scope creep from 9 to 16 phases**: Original v1.4 was Phases 91-99. Phases 100-104 were added during execution. The milestone absorbed the entire mainnet launch + post-launch operations, far exceeding the original "ready to push the button" goal.
+
+### Patterns Established
+- **Stage-based deployment**: Stages 0-7 pattern for complex multi-step deployments with checkpoint/verification at each stage
+- **Pitfall-annotated checklists**: WARN blocks with pitfall IDs (PITFALL-01 through PITFALL-15) embedded at relevant steps
+- **Sanitization pipeline**: rsync exclusion → file-specific edits → multi-pass automated scanning → manual user review
+- **OtterSec verified builds**: solana-verify CLI submits verification PDAs linking program to public repo commit hash
+
+### Key Lessons
+1. **Scope the milestone, don't expand it** — v1.4 absorbed 7 extra phases (100-104), each significant. Should have completed v1.4 at Phase 99 and started v1.5 for mainnet + open-source.
+2. **Write SUMMARY.md during execution, not after** — 10 missing summaries prove that deferring summaries means they never get written.
+3. **REQUIREMENTS.md checkbox automation is overdue** — fourth milestone with this lesson. Consider making it a pre-commit hook or plan execution step.
+4. **Devnet rehearsal saves real money** — 10 pitfalls discovered during devnet saved an estimated 5-10 SOL of failed mainnet transactions and prevented at least one authority burn accident.
+5. **Manual user verification is essential for open-source** — automated tools missed partial key bytes and garbled placeholders that human review caught.
+
+### Cost Observations
+- Model mix: ~80% opus, ~20% sonnet (quality profile)
+- Sessions: ~30+ across 14 days
+- Notable: Highest plan count of any milestone (58). Mainnet deployment and open-source release created long sequential dependency chains that limited parallelization.
+- Mainnet cost: ~20.83 SOL for 6 programs + init + ALT
+
+---
+
 ## Milestone: v1.3 — Protocol Hardening & Polish
 
 **Shipped:** 2026-03-12
@@ -106,6 +161,7 @@
 | v1.1 | 156 | 9 | Component kit, reusable primitives |
 | v1.2 | 134 | 8 | Spec-first, proptest-integrated, audit-verified |
 | v1.3 | 211 | 16 | 3-audit verification, formal verification, audit-driven phases |
+| v1.4 | 324 | 16 | Stage-based deployment, mainnet launch, open-source release |
 
 ### Cumulative Quality
 
@@ -115,7 +171,8 @@
 | v0.6 | 40,000 | 2,576 Rust | 1 (Staking) |
 | v1.2 | 13,500,000 | 4,432 Rust | 1 (Bonding Curve) |
 | v1.3 | — (hardening) | +9,805 Rust | 7 (hardened) |
-| **Total** | **~13.57M** | **~39,094 Rust** | **7 programs** |
+| v1.4 | — (deployment) | +1,034 Rust | 6 active (BC closed) |
+| **Total** | **~13.57M** | **~40,128 Rust** | **6 active programs** |
 
 ### Top Lessons (Verified Across Milestones)
 

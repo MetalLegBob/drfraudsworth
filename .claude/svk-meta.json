@@ -1,5 +1,5 @@
 {
-  "svk_repo": "/Users/mlbob/Projects/SVK/svk-update/..",
+  "svk_repo": "/path/to/svk",
   "installed_version": "1.4.2",
   "installed_skills": [
     "svk-setup",

@@ -1,5 +1,42 @@
 # Project Milestones: Dr. Fraudsworth's Finance Factory
 
+## v1.4 Pre-Mainnet (Shipped: 2026-03-25)
+
+**Delivered:** The full mainnet launch — from deployment infrastructure and governance to bonding curve graduation, open-source release, and OtterSec verification. Dr. Fraudsworth's Finance Factory is live on Solana mainnet at fraudsworth.fun with 6 verified programs, Squads multisig governance, and a public GitHub repo.
+
+**Phases completed:** 91-104 (16 phases, 58 plans)
+
+**Key accomplishments:**
+
+- Canonical deployment infrastructure — deployment.json single source of truth, auto-generated constants, 7-phase deploy-all.sh pipeline with binary verification, safety gates, and mainnet preflight checks
+- Protocol deployed to Solana mainnet — 6 programs + 3 vanity-addressed tokens (cRiME, FraUd, pRoFiT), both bonding curves filled (~500 SOL each), graduated into AMM pools, crank running 10+ days continuously
+- Squads 2-of-3 multisig governance — 11 authorities transferred to timelocked vault (1hr), upgrade round-trip proven on devnet, step-by-step mainnet governance documented (Docs/mainnet-governance.md)
+- Complete Nextra documentation site — every page production-accurate with illustrated diagrams, authority governance published, bonding curve mechanics explained
+- Off-chain security hardening — 7 Bulwark audit findings closed: RPC proxy batch rejection + fetch timeout, webhook fail-closed decode, npm ci enforcement, rate limiter IP extraction
+- Open-source release with OtterSec verified builds — public repo at MetalLegBob/drfraudsworth, 5-pass secret sanitization, all 6 mainnet programs verified on Solscan
+
+**Known tech debt (carried forward):**
+- 3 ignored LiteSVM tests (is_reversed bug, test-only)
+- Refund path (CURVE-04/05) never tested via frontend (LiteSVM only)
+- Requirement text mismatches: E2E-02 says 75/24/1, actual on-chain is 71/24/5
+- 10 missing SUMMARY.md files (phases 101, 102, 94-02)
+
+**Stats:**
+
+- 685 files modified (+231,317 / -10,609 lines)
+- ~40,128 LOC Rust + ~97,567 LOC TypeScript (current totals)
+- 16 phases, 58 plans, 324 commits
+- 14 days execution time (2026-03-12 → 2026-03-25)
+- 61/61 requirements functionally satisfied (audit: tech_debt)
+- 5 security audits consumed total (SOS, BOK, VulnHunter, Bulwark x2)
+- Mainnet deploy cost: ~20.83 SOL (6 programs + init + ALT)
+
+**Git range:** `6378e47` (docs: start milestone v1.4) → `42932d8` (HEAD)
+
+**What's next:** Post-launch operations — progressive timelock extension, Immunefi bounty, external audit, token-list submissions, Jupiter routing integration.
+
+---
+
 ## v1.3 Protocol Hardening & Polish (Shipped: 2026-03-12)
 
 **Delivered:** Every audit finding closed, every program security-hardened, frontend polished for mainnet, documentation rewritten — the protocol is fully finished and ready for v1.4 (final devnet lifecycle test + mainnet deployment).

@@ -14,7 +14,7 @@
  *   5. Prints the new CARNAGE_WSOL_PUBKEY to update on Railway
  *
  * Usage:
- *   source "$HOME/.cargo/env" && export PATH="/Users/mlbob/.local/share/solana/install/active_release/bin:$PATH"
+ *   source "$HOME/.cargo/env" && export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
  *   set -a && source .env && set +a
  *   npx tsx scripts/deploy/fix-carnage-wsol.ts
  */
