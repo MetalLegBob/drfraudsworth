@@ -1,13 +1,15 @@
 # Dr. Fraudsworth's Finance Factory
 
-A tax-driven DeFi protocol on Solana where every swap fuels epochs, carnage events, and real SOL yield for stakers.
+A tax-driven DeFi protocol on Solana where every swap fuels epochs, carnage events, and real SOL rewards for stakers.
 
-Dr. Fraudsworth's Finance Factory is a live, mainnet-deployed Solana protocol built around a novel economic loop: every token swap incurs a configurable tax that flows into the Carnage Fund. Epochs advance via Switchboard VRF randomness, and when Carnage strikes, accumulated taxes are redistributed back to token holders. PROFIT token stakers earn real SOL yield from trading activity -- not inflationary rewards.
+Dr. Fraudsworth's Finance Factory is a live, mainnet-deployed Solana protocol built around a novel economic loop: every token swap incurs a configurable tax that flows into the Carnage Fund. Epochs advance via Switchboard VRF randomness, and when Carnage strikes, accumulated taxes are redistributed back to token holders. PROFIT token stakers earn real SOL rewards from trading activity -- not inflationary token emissions.
 
 ## Live Protocol
 
 - **Website:** [fraudsworth.fun](https://fraudsworth.fun)
-- **Documentation:** [fraudsworth.fun/docs](https://fraudsworth.fun/docs)
+- **Documentation:** [docs.fraudsworth.fun](https://docs.fraudsworth.fun)
+- **X:** [@fraudsworth](https://x.com/fraudsworth)
+- **Telegram:** [t.me/fraudsworth](https://t.me/fraudsworth)
 - **Explorer:** See program addresses below
 
 ## Deployed Programs (Solana Mainnet)
@@ -37,7 +39,7 @@ Dr. Fraudsworth's Finance Factory is a live, mainnet-deployed Solana protocol bu
 
 ## How It Works
 
-Dr. Fraudsworth implements a closed economic loop where trading friction generates real yield:
+Dr. Fraudsworth implements a closed economic loop where trading friction generates real rewards:
 
 1. **Tax on Every Swap** -- Every token swap through the AMM incurs a configurable tax (14-25% depending on the current epoch). Tax proceeds are split: 71% to the Carnage Fund, 24% to PROFIT stakers, and 5% to the treasury.
 
@@ -45,9 +47,9 @@ Dr. Fraudsworth implements a closed economic loop where trading friction generat
 
 3. **Carnage Events** -- When Carnage fires, the accumulated Carnage Fund executes autonomous buy-and-burn operations, redistributing value back to token holders by permanently removing supply.
 
-4. **PROFIT Staking** -- PROFIT token holders stake to earn real SOL yield from the 24% staker allocation of every swap. This is real yield from real trading activity, not inflationary token emissions.
+4. **PROFIT Staking** -- PROFIT token holders stake to earn real SOL rewards from the 24% staker allocation of every swap. These are real rewards from real trading activity, not inflationary token emissions.
 
-5. **Dual-Token Economy** -- CRIME and FRAUD are the two tradeable tokens, each with their own SOL pool. PROFIT is the yield-bearing governance token earned through the Conversion Vault.
+5. **Dual-Token Economy** -- CRIME and FRAUD are the two tradeable tokens, each with their own SOL pool. PROFIT is the reward-bearing staking token earned through the Conversion Vault.
 
 ## Architecture
 
@@ -61,7 +63,7 @@ The protocol consists of 6 active programs working together:
 
 - **Epoch Program** (`epoch-program`) -- VRF-driven epoch state machine. Manages the commit-reveal-consume cycle for Switchboard randomness. Controls tax rate rotation and Carnage event triggering.
 
-- **Staking** (`staking`) -- PROFIT token staking with SOL yield distribution. Tracks per-user stake positions and distributes accumulated staker rewards proportionally.
+- **Staking** (`staking`) -- PROFIT token staking with SOL reward distribution. Tracks per-user stake positions and distributes accumulated staker rewards proportionally.
 
 - **Conversion Vault** (`conversion-vault`) -- Cross-token conversion mechanism allowing users to convert between CRIME/FRAUD and PROFIT at protocol-defined rates.
 
@@ -163,7 +165,7 @@ programs/           -- 7 Anchor programs (6 active + bonding curve)
   transfer-hook/    -- Token-2022 transfer hook for tax collection
   tax-program/      -- Tax distribution engine
   epoch-program/    -- VRF-driven epoch advancement and Carnage
-  staking/          -- PROFIT staking with SOL yield
+  staking/          -- PROFIT staking with SOL rewards
   conversion-vault/ -- Cross-token conversion
   bonding_curve/    -- Token launch curves (closed post-graduation)
 app/                -- Next.js 16 frontend (React, TailwindCSS, Turbopack)
