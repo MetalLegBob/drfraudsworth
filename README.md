@@ -1,8 +1,8 @@
-# Dr. Fraudsworth's Finance Factory
+# Dr. Fraudsworths' Fantastical Finance Factory
 
 A tax-driven DeFi protocol on Solana where every swap fuels epochs, carnage events, and real SOL rewards for stakers.
 
-Dr. Fraudsworth's Finance Factory is a live, mainnet-deployed Solana protocol built around a novel economic loop: every token swap incurs a configurable tax that flows into the Carnage Fund. Epochs advance via Switchboard VRF randomness, and when Carnage strikes, accumulated taxes are redistributed back to token holders. PROFIT token stakers earn real SOL rewards from trading activity -- not inflationary token emissions.
+Dr. Fraudsworths' Fantastical Finance Factory is a live, mainnet-deployed Solana protocol built around a novel economic loop: every token swap incurs a configurable tax that flows into the Carnage Fund. Epochs advance via Switchboard VRF randomness, and when Carnage strikes, accumulated taxes are redistributed back to token holders. PROFIT token stakers earn real SOL rewards from trading activity -- not inflationary token emissions.
 
 ## Live Protocol
 
@@ -16,26 +16,33 @@ Dr. Fraudsworth's Finance Factory is a live, mainnet-deployed Solana protocol bu
 
 | Program | Address | Verified |
 |---------|---------|----------|
-| AMM | [`5JsSAL3kJDUWD4ZveYXYZmgm1eVqueesTZVdAvtZg8cR`](https://explorer.solana.com/address/5JsSAL3kJDUWD4ZveYXYZmgm1eVqueesTZVdAvtZg8cR) | [OtterSec](https://verify.osec.io/status/5JsSAL3kJDUWD4ZveYXYZmgm1eVqueesTZVdAvtZg8cR) |
-| Transfer Hook | [`CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd`](https://explorer.solana.com/address/CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd) | [OtterSec](https://verify.osec.io/status/CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd) |
-| Tax Program | [`43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj`](https://explorer.solana.com/address/43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj) | [OtterSec](https://verify.osec.io/status/43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj) |
-| Epoch Program | [`4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2`](https://explorer.solana.com/address/4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2) | [OtterSec](https://verify.osec.io/status/4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2) |
-| Staking | [`12b3t1cNiAUoYLiWFEnFa4w6qYxVAiqCWU7KZuzLPYtH`](https://explorer.solana.com/address/12b3t1cNiAUoYLiWFEnFa4w6qYxVAiqCWU7KZuzLPYtH) | [OtterSec](https://verify.osec.io/status/12b3t1cNiAUoYLiWFEnFa4w6qYxVAiqCWU7KZuzLPYtH) |
-| Conversion Vault | [`5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ`](https://explorer.solana.com/address/5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ) | [OtterSec](https://verify.osec.io/status/5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ) |
+| AMM | [`5JsSAL3kJDUWD4ZveYXYZmgm1eVqueesTZVdAvtZg8cR`](https://solscan.io/account/5JsSAL3kJDUWD4ZveYXYZmgm1eVqueesTZVdAvtZg8cR) | [OtterSec](https://verify.osec.io/status/5JsSAL3kJDUWD4ZveYXYZmgm1eVqueesTZVdAvtZg8cR) |
+| Transfer Hook | [`CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd`](https://solscan.io/account/CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd) | [OtterSec](https://verify.osec.io/status/CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd) |
+| Tax Program | [`43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj`](https://solscan.io/account/43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj) | [OtterSec](https://verify.osec.io/status/43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj) |
+| Epoch Program | [`4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2`](https://solscan.io/account/4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2) | [OtterSec](https://verify.osec.io/status/4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2) |
+| Staking | [`12b3t1cNiAUoYLiWFEnFa4w6qYxVAiqCWU7KZuzLPYtH`](https://solscan.io/account/12b3t1cNiAUoYLiWFEnFa4w6qYxVAiqCWU7KZuzLPYtH) | [OtterSec](https://verify.osec.io/status/12b3t1cNiAUoYLiWFEnFa4w6qYxVAiqCWU7KZuzLPYtH) |
+| Conversion Vault | [`5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ`](https://solscan.io/account/5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ) | [OtterSec](https://verify.osec.io/status/5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ) |
 
 ### Token Mints
 
 | Token | Mint Address |
 |-------|-------------|
-| CRIME | [`cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc`](https://explorer.solana.com/address/cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc) |
-| FRAUD | [`FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5`](https://explorer.solana.com/address/FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5) |
-| PROFIT | [`pRoFiTj36haRD5sG2Neqib9KoSrtdYMGrM7SEkZetfR`](https://explorer.solana.com/address/pRoFiTj36haRD5sG2Neqib9KoSrtdYMGrM7SEkZetfR) |
+| CRIME | [`cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc`](https://solscan.io/account/cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc) |
+| FRAUD | [`FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5`](https://solscan.io/account/FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5) |
+| PROFIT | [`pRoFiTj36haRD5sG2Neqib9KoSrtdYMGrM7SEkZetfR`](https://solscan.io/account/pRoFiTj36haRD5sG2Neqib9KoSrtdYMGrM7SEkZetfR) |
 
 ### Treasury
 
 | | Address |
 |---|---------|
-| Treasury | [`3ihhwLnEJ2duwPSLYxhLbFrdhhxXLcvcrV9rAHqMgzCv`](https://explorer.solana.com/address/3ihhwLnEJ2duwPSLYxhLbFrdhhxXLcvcrV9rAHqMgzCv) |
+| Treasury | [`3ihhwLnEJ2duwPSLYxhLbFrdhhxXLcvcrV9rAHqMgzCv`](https://solscan.io/account/3ihhwLnEJ2duwPSLYxhLbFrdhhxXLcvcrV9rAHqMgzCv) |
+
+### Squads Multisig (2-of-3, Timelocked)
+
+| | Address |
+|---|---------|
+| Multisig | [`F7axBNUgWQQ33ZYLdenCk5SV3wBrKyYz9R7MscdPJi1A`](https://solscan.io/account/F7axBNUgWQQ33ZYLdenCk5SV3wBrKyYz9R7MscdPJi1A) |
+| Vault (Authority Holder) | [`4SMcPtixKvjgj3U5N7C4kcnHYcySudLZfFWc523NAvXJ`](https://solscan.io/account/4SMcPtixKvjgj3U5N7C4kcnHYcySudLZfFWc523NAvXJ) |
 
 ## How It Works
 
