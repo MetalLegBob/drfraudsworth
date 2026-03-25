@@ -350,6 +350,21 @@ export function CandlestickChart({
 
     prevCandleCountRef.current = candles.length;
     prevLastTimeRef.current = lastCandle.time;
+
+    // ── Sync legend state with latest candle ──────────────────────────
+    // Without this, switching tokens updates the chart series but leaves
+    // the OHLCV header showing stale data from the previous token.
+    // The crosshair handler also sets these on hover/leave, but we need
+    // an eager update here so the legend is correct immediately.
+    setLegendData({
+      open: lastCandle.open,
+      high: lastCandle.high,
+      low: lastCandle.low,
+      close: lastCandle.close,
+    });
+    setLegendVolume(lastCandle.volume);
+    const prevCandle = candles.length >= 2 ? candles[candles.length - 2] : undefined;
+    setPrevClose(prevCandle?.close);
   }, [candles]);
 
   return (
