@@ -81,6 +81,16 @@ export interface EpochTransitionResult {
   carnageExecutedAtomically: boolean;
   /** Pubkey of the randomness account used this cycle (null if consumed by another crank) */
   randomnessPubkey: PublicKey | null;
+
+  /** VRF instrumentation (CRANK-03) */
+  /** Wall-clock time for successful revealIx() call in ms */
+  gatewayMs?: number;
+  /** Total reveal retry count (cumulative across stale + fresh) */
+  revealAttempts?: number;
+  /** Total recovery path wall-clock time in ms (0 = happy path) */
+  recoveryTimeMs?: number;
+  /** Slot delta between commit TX confirmation and successful reveal */
+  commitToRevealSlots?: number;
 }
 
 /**
@@ -232,6 +242,15 @@ function cheapSideToStr(val: any): string {
 // ─── Reveal + Consume Helpers ───────────────────────────────────────────────
 
 /**
+ * Result from a tryReveal() call, including timing instrumentation.
+ */
+interface RevealResult {
+  revealIx: any;
+  attempts: number;
+  durationMs: number;
+}
+
+/**
  * Try to get a reveal instruction from the oracle's default gateway.
  *
  * Why no gateway rotation? Each randomness account is assigned to a specific
@@ -246,27 +265,34 @@ function cheapSideToStr(val: any): string {
  *
  * @param randomness Switchboard Randomness instance
  * @param maxAttempts Max retry attempts on the oracle's default gateway
- * @returns Reveal instruction or null if gateway is unresponsive
+ * @returns RevealResult with instruction and timing data, or null if gateway is unresponsive
  */
 async function tryReveal(
   randomness: any,
   maxAttempts: number
-): Promise<any | null> {
+): Promise<RevealResult | null> {
   console.log("  [tx3] Getting reveal instruction...");
+  const startMs = Date.now();
+  let attempts = 0;
+
+  const REVEAL_BASE_DELAY_MS = 1000;
+  const REVEAL_MAX_DELAY_MS = 16_000;
 
   for (let i = 0; i < maxAttempts; i++) {
+    attempts++;
     try {
       const revealIx = await randomness.revealIx();
-      console.log(`  [tx3] Got reveal instruction (attempt ${i + 1}/${maxAttempts})`);
-      return revealIx;
+      console.log(`  [tx3] Got reveal instruction (attempt ${attempts}/${maxAttempts})`);
+      return { revealIx, attempts, durationMs: Date.now() - startMs };
     } catch (e) {
       const errMsg = String(e).slice(0, 100);
       console.log(
-        `  [tx3] Reveal failed (attempt ${i + 1}/${maxAttempts}): ${errMsg}`
+        `  [tx3] Reveal failed (attempt ${attempts}/${maxAttempts}): ${errMsg}`
       );
       if (i < maxAttempts - 1) {
-        // Exponential backoff: 3s, 6s, 9s... (oracle may need time to process)
-        await sleep(3000 * (i + 1));
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s (capped) — oracle may need time to process
+        const delay = Math.min(REVEAL_BASE_DELAY_MS * Math.pow(2, i), REVEAL_MAX_DELAY_MS);
+        await sleep(delay);
       }
     }
   }
@@ -426,21 +452,23 @@ export async function advanceEpochWithVRF(
     console.log(`  [recovery] Pending randomness: ${stalePubkey.toBase58()}`);
 
     // Attempt 1: Try to reveal the stale randomness (oracle may have responded late)
+    const recoveryStartMs = Date.now();
     const staleRandomness = new sb.Randomness(sbProgram as any, stalePubkey);
-    const staleRevealIx = await tryReveal(staleRandomness, 5);
+    const staleRevealResult = await tryReveal(staleRandomness, 5);
+    let totalRevealAttempts = staleRevealResult?.attempts ?? 5; // Track cumulative attempts
 
     let recoveryConsumeSig: string;
     let recoveryRandomnessPubkey: PublicKey = stalePubkey; // Updated if timeout retry uses fresh account
 
     let staleRevealSucceeded = false;
-    if (staleRevealIx) {
+    if (staleRevealResult) {
       // Oracle responded — try to complete the stale transition directly.
       // If the on-chain reveal fails (e.g., 0x1780 stale/expired randomness),
       // fall through to the timeout retry path instead of throwing.
       console.log("  [recovery] Oracle revealed stale VRF. Completing transition...");
       try {
         recoveryConsumeSig = await sendRevealAndConsume(
-          provider, epochProgram, accounts, staleRevealIx, stalePubkey, wallet
+          provider, epochProgram, accounts, staleRevealResult.revealIx, stalePubkey, wallet
         );
         staleRevealSucceeded = true;
       } catch (revealErr) {
@@ -487,6 +515,11 @@ export async function advanceEpochWithVRF(
             carnageTriggered: stateAfter.lastCarnageEpoch === stateAfter.currentEpoch,
             carnageExecutedAtomically: false,
             randomnessPubkey: null, // Another crank consumed — we don't own the close
+            // VRF instrumentation (CRANK-03): TOCTOU — no meaningful measurements
+            gatewayMs: 0,
+            revealAttempts: 0,
+            recoveryTimeMs: Date.now() - recoveryStartMs,
+            commitToRevealSlots: 0,
           };
         }
 
@@ -553,15 +586,16 @@ export async function advanceEpochWithVRF(
       // Wait for oracle on the fresh randomness
       await waitForSlotAdvance(connection, 3);
 
-      const retryRevealIx = await tryReveal(retryRandomness, 10);
-      if (!retryRevealIx) {
+      const retryRevealResult = await tryReveal(retryRandomness, 10);
+      if (!retryRevealResult) {
         throw new Error("VRF recovery failed: oracle not responding after retry_epoch_vrf");
       }
+      totalRevealAttempts += retryRevealResult.attempts;
 
       recoveryRandomnessPubkey = retryRngKp.publicKey;
       try {
         recoveryConsumeSig = await sendRevealAndConsume(
-          provider, epochProgram, accounts, retryRevealIx,
+          provider, epochProgram, accounts, retryRevealResult.revealIx,
           retryRngKp.publicKey, wallet
         );
       } catch (retryConsumeErr) {
@@ -576,6 +610,33 @@ export async function advanceEpochWithVRF(
 
         if (alreadyConsumed) {
           console.log(`  [recovery] VRF already consumed by another process during timeout retry (TOCTOU). Re-reading state...`);
+
+          // CRANK-01: Close both leaked accounts before returning.
+          // stalePubkey (original stale) and retryRngKp (fresh retry) both leak
+          // since another crank consumed the VRF and won't close our accounts.
+          try {
+            console.log(`  [recovery] Closing stale randomness ${stalePubkey.toBase58().slice(0, 12)}...`);
+            const staleCloseSig = await closeRandomnessAccount(provider, stalePubkey);
+            if (staleCloseSig) {
+              console.log(`  [recovery] Stale account closed. TX: ${staleCloseSig.slice(0, 16)}...`);
+            } else {
+              console.log(`  [recovery] WARNING: Stale account close failed (startup sweep will catch it)`);
+            }
+          } catch {
+            console.log(`  [recovery] WARNING: Stale account close failed (startup sweep will catch it)`);
+          }
+          try {
+            console.log(`  [recovery] Closing retry randomness ${retryRngKp.publicKey.toBase58().slice(0, 12)}...`);
+            const retryCloseSig = await closeRandomnessAccount(provider, retryRngKp.publicKey);
+            if (retryCloseSig) {
+              console.log(`  [recovery] Retry account closed. TX: ${retryCloseSig.slice(0, 16)}...`);
+            } else {
+              console.log(`  [recovery] WARNING: Retry account close failed (startup sweep will catch it)`);
+            }
+          } catch {
+            console.log(`  [recovery] WARNING: Retry account close failed (startup sweep will catch it)`);
+          }
+
           await sleep(200);
           const stateAfter = await (epochProgram.account as any).epochState.fetch(
             accounts.epochStatePda
@@ -604,6 +665,11 @@ export async function advanceEpochWithVRF(
             carnageTriggered: stateAfter.lastCarnageEpoch === stateAfter.currentEpoch,
             carnageExecutedAtomically: false,
             randomnessPubkey: null, // Another crank consumed — we don't own the close
+            // VRF instrumentation (CRANK-03): TOCTOU — no meaningful gateway measurement
+            gatewayMs: 0,
+            revealAttempts: totalRevealAttempts,
+            recoveryTimeMs: Date.now() - recoveryStartMs,
+            commitToRevealSlots: 0,
           };
         }
 
@@ -613,6 +679,23 @@ export async function advanceEpochWithVRF(
     }
 
     await sleep(200);
+
+    // CRANK-01: Close the stale randomness account if a fresh one was used.
+    // recoveryRandomnessPubkey is updated to retryRngKp.publicKey when timeout retry
+    // creates fresh randomness. The stale account (original pending) leaks otherwise.
+    if (recoveryRandomnessPubkey.toBase58() !== stalePubkey.toBase58()) {
+      try {
+        console.log(`  [recovery] Closing stale randomness ${stalePubkey.toBase58().slice(0, 12)}...`);
+        const staleCloseSig = await closeRandomnessAccount(provider, stalePubkey);
+        if (staleCloseSig) {
+          console.log(`  [recovery] Stale account closed. TX: ${staleCloseSig.slice(0, 16)}...`);
+        } else {
+          console.log(`  [recovery] WARNING: Stale account close failed (startup sweep will catch it)`);
+        }
+      } catch {
+        console.log(`  [recovery] WARNING: Stale account close failed (startup sweep will catch it)`);
+      }
+    }
 
     // Read final state and return the completed transition
     const stateAfter = await (epochProgram.account as any).epochState.fetch(
@@ -624,6 +707,11 @@ export async function advanceEpochWithVRF(
     const highByte = (stateAfter.highTaxBps - 1100) / 100;
 
     console.log(`  [recovery] Stale VRF recovered. Epoch: ${stateAfter.currentEpoch}`);
+
+    // Determine gateway timing from the last successful reveal
+    const recoveryGatewayMs = staleRevealSucceeded && staleRevealResult
+      ? staleRevealResult.durationMs
+      : 0; // Timeout retry path — stale reveal didn't produce the final instruction
 
     return {
       epoch: stateAfter.currentEpoch,
@@ -649,6 +737,11 @@ export async function advanceEpochWithVRF(
         stateAfter.lastCarnageEpoch === stateAfter.currentEpoch,
       carnageExecutedAtomically: false, // Recovery path does not attempt atomic Carnage
       randomnessPubkey: recoveryRandomnessPubkey,
+      // VRF instrumentation (CRANK-03)
+      gatewayMs: recoveryGatewayMs,
+      revealAttempts: totalRevealAttempts,
+      recoveryTimeMs: Date.now() - recoveryStartMs,
+      commitToRevealSlots: 0, // Recovery — commit was in a prior cycle
     };
   }
 
@@ -728,20 +821,32 @@ export async function advanceEpochWithVRF(
   let activeRngKp = rngKp;
   let activeRandomness = randomness;
 
-  const revealResult = await tryReveal(randomness, 10);
+  // Capture commit slot for instrumentation (CRANK-03)
+  const commitSlot = await connection.getSlot();
 
-  if (revealResult) {
+  const happyRevealResult = await tryReveal(randomness, 5);
+  let happyPathRevealAttempts = happyRevealResult?.attempts ?? 5;
+  let happyPathGatewayMs = happyRevealResult?.durationMs ?? 0;
+  let happyPathRecoveryTimeMs = 0; // 0 = no recovery needed
+  let happyPathCommitToRevealSlots = 0;
+
+  if (happyRevealResult) {
     // Happy path: oracle responded, build reveal + consume
     consumeSig = await sendRevealAndConsume(
       provider,
       epochProgram,
       accounts,
-      revealResult,
+      happyRevealResult.revealIx,
       activeRngKp.publicKey,
       wallet
     );
+
+    // Capture reveal slot for slot delta instrumentation
+    const revealSlot = await connection.getSlot();
+    happyPathCommitToRevealSlots = revealSlot - commitSlot;
   } else {
-    // Oracle failed after 10 retries (30 seconds) -- fall back to VRF timeout recovery
+    // Oracle failed after 5 retries (~31 seconds) -- fall back to VRF timeout recovery
+    const recoveryStartMs = Date.now();
     console.log("  [recovery] Oracle failed. Starting VRF timeout recovery...");
 
     // VRF-05: Calculate remaining wait from the ACTUAL VRF request slot, not from now.
@@ -819,20 +924,40 @@ export async function advanceEpochWithVRF(
     // Wait for oracle on retry
     await waitForSlotAdvance(connection, 3);
 
-    // Try reveal again with the new randomness account (10 attempts = 30s)
+    // Try reveal again with the new randomness account (10 attempts, ~93s with exponential backoff)
     const retryRevealResult = await tryReveal(retryRandomness, 10);
     if (!retryRevealResult) {
       throw new Error("VRF recovery failed: oracle still not responding after retry");
     }
 
+    // Accumulate attempts from both the failed happy-path and retry
+    happyPathRevealAttempts += retryRevealResult.attempts;
+    happyPathGatewayMs = retryRevealResult.durationMs;
+    happyPathRecoveryTimeMs = Date.now() - recoveryStartMs;
+
     activeRngKp = retryRngKp;
     activeRandomness = retryRandomness;
+
+    // CRANK-01: Close the original rngKp account that was orphaned by timeout recovery.
+    // activeRngKp now points to retryRngKp, so crank-runner will close that one.
+    // The original rngKp.publicKey (created in TX1) leaks without this inline close.
+    try {
+      console.log(`  [recovery] Closing original randomness ${rngKp.publicKey.toBase58().slice(0, 12)}...`);
+      const origCloseSig = await closeRandomnessAccount(provider, rngKp.publicKey);
+      if (origCloseSig) {
+        console.log(`  [recovery] Original account closed. TX: ${origCloseSig.slice(0, 16)}...`);
+      } else {
+        console.log(`  [recovery] WARNING: Original account close failed (startup sweep will catch it)`);
+      }
+    } catch {
+      console.log(`  [recovery] WARNING: Original account close failed (startup sweep will catch it)`);
+    }
 
     consumeSig = await sendRevealAndConsume(
       provider,
       epochProgram,
       accounts,
-      retryRevealResult,
+      retryRevealResult.revealIx,
       activeRngKp.publicKey,
       wallet
     );
@@ -926,6 +1051,11 @@ export async function advanceEpochWithVRF(
     carnageTriggered,
     carnageExecutedAtomically,
     randomnessPubkey: activeRngKp.publicKey,
+    // VRF instrumentation (CRANK-03)
+    gatewayMs: happyPathGatewayMs,
+    revealAttempts: happyPathRevealAttempts,
+    recoveryTimeMs: happyPathRecoveryTimeMs,
+    commitToRevealSlots: happyPathCommitToRevealSlots,
   };
 }
 

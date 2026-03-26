@@ -30,6 +30,8 @@
  *   MIN_EPOCH_SLOTS_OVERRIDE - Override auto-detected epoch slot count
  *   CRANK_LOW_BALANCE_SOL   - SOL balance warning threshold (default: auto)
  *   HEALTH_PORT             - Port for internal /health endpoint (default: 8080)
+ *   TELEGRAM_BOT_TOKEN      - Telegram bot token for crank alerts (optional)
+ *   TELEGRAM_CHAT_ID        - Telegram chat ID for crank alerts (optional)
  */
 
 import { createServer, Server } from "http";
@@ -47,6 +49,7 @@ import {
 } from "../vrf/lib/vrf-flow";
 import { readEpochState } from "../vrf/lib/epoch-reader";
 import { getOrCreateProtocolALT } from "../e2e/lib/alt-helper";
+import { sendAlert } from "./lib/telegram";
 
 // ---- Constants ----
 
@@ -57,8 +60,9 @@ import { getOrCreateProtocolALT } from "../e2e/lib/alt-helper";
  */
 const SLOT_WAIT_BUFFER = 10;
 
-/** Sleep duration after a failed epoch cycle before retrying (ms) */
-const ERROR_RETRY_DELAY_MS = 30_000;
+/** Base delay for cycle error retry. Exponential: 15s * 2^(errors-1), capped at 240s. */
+const ERROR_BASE_DELAY_MS = 15_000;
+const ERROR_MAX_DELAY_MS = 240_000;
 
 /** Delay between RPC calls to respect rate limits (ms) */
 const RPC_DELAY_MS = 200;
@@ -77,6 +81,9 @@ const TRIGGER_BOUNTY_LAMPORTS = 1_000_000; // Must match on-chain constant
 const RENT_EXEMPT_MINIMUM = 890_880;       // 0-data SystemAccount
 const MIN_VAULT_BALANCE = TRIGGER_BOUNTY_LAMPORTS + RENT_EXEMPT_MINIMUM + 100_000; // ~2M
 const VAULT_TOP_UP_LAMPORTS = 5_000_000;   // 0.005 SOL — covers ~5 bounties
+
+/** Safety-net sweep interval. Every N cycles, re-run the startup sweep to catch any leaked accounts. */
+const PERIODIC_SWEEP_INTERVAL = 50;
 
 /**
  * H013 — Maximum SOL the crank will send to the vault in a single top-up.
@@ -372,6 +379,8 @@ async function main(): Promise<void> {
   console.log("=".repeat(60));
   console.log();
 
+  const crankStartMs = Date.now();
+
   // ---- Load Configuration ----
   console.log("[crank] Loading configuration...");
 
@@ -464,6 +473,12 @@ async function main(): Promise<void> {
     const cycleStartMs = Date.now();
 
     try {
+      // Periodic sweep: catch randomness accounts leaked by failed inline closes
+      if (cycleCount > 1 && cycleCount % PERIODIC_SWEEP_INTERVAL === 0) {
+        console.log(`[crank] Periodic sweep (every ${PERIODIC_SWEEP_INTERVAL} cycles)...`);
+        await sweepStaleRandomnessAccounts(provider);
+      }
+
       // 1. Read current state to determine wait time
       epochState = await readEpochState(
         programs.epochProgram,
@@ -519,28 +534,39 @@ async function main(): Promise<void> {
         );
       }
 
-      // 3. Wait for next epoch boundary
-      // On-chain SLOTS_PER_EPOCH is 750 (devnet) or 4500 (mainnet).
-      // We read the current slot and epoch_start_slot to calculate remaining wait.
-      const currentSlot = await provider.connection.getSlot();
-      await sleep(RPC_DELAY_MS);
-
-      // Calculate slots since epoch started
-      const slotsSinceEpochStart = currentSlot - Number(epochState.epochStartSlot);
-
-      // Determine how many more slots to wait using configurable MIN_EPOCH_SLOTS.
-      // The VRF flow already handles EpochBoundaryNotReached retries as a safety net.
-      const slotsToWait = Math.max(
-        0,
-        MIN_EPOCH_SLOTS - slotsSinceEpochStart + SLOT_WAIT_BUFFER
-      );
-
-      if (slotsToWait > 0) {
-        const waitMinutes = ((slotsToWait * 0.4) / 60).toFixed(1);
+      // 3. Wait for next epoch boundary (skip if VRF recovery needed)
+      // When vrfPending=true, the current epoch's VRF was committed but never
+      // consumed (e.g. TX3 expired). advanceEpochWithVRF handles recovery
+      // internally — no need to wait for the NEXT epoch boundary first.
+      // Without this check, a TX3 failure causes a ~30-minute unnecessary wait
+      // because trigger_epoch_transition already updated epochStartSlot.
+      if (epochState.vrfPending) {
         console.log(
-          `[crank] Waiting ${slotsToWait} slots (~${waitMinutes} min) for epoch boundary...`
+          `[crank] VRF pending from previous cycle — skipping epoch boundary wait, entering recovery...`
         );
-        await waitForSlotAdvance(provider.connection, slotsToWait);
+      } else {
+        // On-chain SLOTS_PER_EPOCH is 750 (devnet) or 4500 (mainnet).
+        // We read the current slot and epoch_start_slot to calculate remaining wait.
+        const currentSlot = await provider.connection.getSlot();
+        await sleep(RPC_DELAY_MS);
+
+        // Calculate slots since epoch started
+        const slotsSinceEpochStart = currentSlot - Number(epochState.epochStartSlot);
+
+        // Determine how many more slots to wait using configurable MIN_EPOCH_SLOTS.
+        // The VRF flow already handles EpochBoundaryNotReached retries as a safety net.
+        const slotsToWait = Math.max(
+          0,
+          MIN_EPOCH_SLOTS - slotsSinceEpochStart + SLOT_WAIT_BUFFER
+        );
+
+        if (slotsToWait > 0) {
+          const waitMinutes = ((slotsToWait * 0.4) / 60).toFixed(1);
+          console.log(
+            `[crank] Waiting ${slotsToWait} slots (~${waitMinutes} min) for epoch boundary...`
+          );
+          await waitForSlotAdvance(provider.connection, slotsToWait);
+        }
       }
 
       // 4. Advance epoch with VRF (atomic carnage bundling enabled)
@@ -604,6 +630,11 @@ async function main(): Promise<void> {
         durationSec: parseFloat(durationSec),
         totalCarnage: carnageTriggerCount,
         hourlySpend: getCurrentHourlySpend(),
+        // VRF instrumentation (CRANK-03)
+        gateway_ms: result.gatewayMs ?? 0,
+        reveal_attempts: result.revealAttempts ?? 0,
+        recovery_time_ms: result.recoveryTimeMs ?? 0,
+        commit_to_reveal_slots: result.commitToRevealSlots ?? 0,
       };
       console.log(`[epoch] ${JSON.stringify(logEntry)}`);
 
@@ -619,18 +650,37 @@ async function main(): Promise<void> {
         console.error(
           `[crank] CRITICAL: Circuit breaker tripped after ${CIRCUIT_BREAKER_THRESHOLD} consecutive errors. Halting.`
         );
+
+        // Send Telegram alert (best-effort, non-blocking relative to halt)
+        const alertBalance = await provider.connection.getBalance(
+          provider.wallet.publicKey
+        ).catch(() => 0);
+
+        await sendAlert({
+          event: "CIRCUIT BREAKER TRIPPED",
+          lastError: errStr,
+          epoch: epochState?.currentEpoch ?? 0,
+          walletBalanceSol: alertBalance / LAMPORTS_PER_SOL,
+          consecutiveErrors,
+          uptimeSeconds: (Date.now() - crankStartMs) / 1000,
+        });
+
         break;
       }
 
       // Prune spending log on each cycle (success or failure)
       pruneSpendingLog();
 
-      // Don't exit — sleep and retry next cycle
+      // Don't exit — sleep and retry next cycle with exponential backoff
       if (!shutdownRequested) {
-        console.log(
-          `[crank] Retrying in ${ERROR_RETRY_DELAY_MS / 1000}s...`
+        const errorDelay = Math.min(
+          ERROR_BASE_DELAY_MS * Math.pow(2, consecutiveErrors - 1),
+          ERROR_MAX_DELAY_MS
         );
-        await sleep(ERROR_RETRY_DELAY_MS);
+        console.log(
+          `[crank] Retrying in ${(errorDelay / 1000).toFixed(0)}s (attempt ${consecutiveErrors}/${CIRCUIT_BREAKER_THRESHOLD})...`
+        );
+        await sleep(errorDelay);
       }
     }
   }
