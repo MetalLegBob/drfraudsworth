@@ -164,7 +164,7 @@ pub const TAX_ESCROW_SEED: &[u8] = b"tax_escrow";
 
 #[cfg(feature = "devnet")]
 pub fn crime_mint() -> Pubkey {
-    Pubkey::from_str("DtbDMB2dU8veALKTB12fi2HYBKMEVoKxYTbLp9VAvAxR").unwrap()
+    Pubkey::from_str("cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc").unwrap()
 }
 
 #[cfg(feature = "localnet")]
@@ -175,12 +175,12 @@ pub fn crime_mint() -> Pubkey {
 
 #[cfg(not(any(feature = "devnet", feature = "localnet")))]
 pub fn crime_mint() -> Pubkey {
-    Pubkey::from_str("DtbDMB2dU8veALKTB12fi2HYBKMEVoKxYTbLp9VAvAxR").unwrap()
+    Pubkey::from_str("cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc").unwrap()
 }
 
 #[cfg(feature = "devnet")]
 pub fn fraud_mint() -> Pubkey {
-    Pubkey::from_str("78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx").unwrap()
+    Pubkey::from_str("FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5").unwrap()
 }
 
 #[cfg(feature = "localnet")]
@@ -191,7 +191,7 @@ pub fn fraud_mint() -> Pubkey {
 
 #[cfg(not(any(feature = "devnet", feature = "localnet")))]
 pub fn fraud_mint() -> Pubkey {
-    Pubkey::from_str("78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx").unwrap()
+    Pubkey::from_str("FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5").unwrap()
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ pub fn fraud_mint() -> Pubkey {
 /// Matches declare_id! in epoch-program/src/lib.rs.
 #[cfg(feature = "devnet")]
 pub fn epoch_program_id() -> Pubkey {
-    Pubkey::from_str("E1u6fM9Pr3Pgbcz1NGq9KQzFbwD8F1uFkT3c9x1juA5h").unwrap()
+    Pubkey::from_str("4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2").unwrap()
 }
 
 #[cfg(feature = "localnet")]
@@ -215,7 +215,7 @@ pub fn epoch_program_id() -> Pubkey {
 
 #[cfg(not(any(feature = "devnet", feature = "localnet")))]
 pub fn epoch_program_id() -> Pubkey {
-    Pubkey::from_str("E1u6fM9Pr3Pgbcz1NGq9KQzFbwD8F1uFkT3c9x1juA5h").unwrap()
+    Pubkey::from_str("4Heqc8QEjJCspHR8y96wgZBnBfbe3Qb8N6JBZMQt9iw2").unwrap()
 }
 
 /// Seed for carnage SOL vault PDA on the epoch program.

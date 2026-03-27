@@ -23,7 +23,7 @@ pub const VAULT_PROFIT_SEED: &[u8] = b"vault_profit";
 
 #[cfg(feature = "devnet")]
 pub fn crime_mint() -> Pubkey {
-    Pubkey::from_str("DtbDMB2dU8veALKTB12fi2HYBKMEVoKxYTbLp9VAvAxR").unwrap()
+    Pubkey::from_str("cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc").unwrap()
 }
 
 #[cfg(feature = "localnet")]
@@ -34,12 +34,12 @@ pub fn crime_mint() -> Pubkey {
 
 #[cfg(not(any(feature = "devnet", feature = "localnet")))]
 pub fn crime_mint() -> Pubkey {
-    Pubkey::from_str("DtbDMB2dU8veALKTB12fi2HYBKMEVoKxYTbLp9VAvAxR").unwrap()
+    Pubkey::from_str("cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc").unwrap()
 }
 
 #[cfg(feature = "devnet")]
 pub fn fraud_mint() -> Pubkey {
-    Pubkey::from_str("78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx").unwrap()
+    Pubkey::from_str("FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5").unwrap()
 }
 
 #[cfg(feature = "localnet")]
@@ -49,12 +49,12 @@ pub fn fraud_mint() -> Pubkey {
 
 #[cfg(not(any(feature = "devnet", feature = "localnet")))]
 pub fn fraud_mint() -> Pubkey {
-    Pubkey::from_str("78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx").unwrap()
+    Pubkey::from_str("FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5").unwrap()
 }
 
 #[cfg(feature = "devnet")]
 pub fn profit_mint() -> Pubkey {
-    Pubkey::from_str("Eaipvk74Cw7CYUJNafsai9jxQ913V76MF9EfdQ3nNp2a").unwrap()
+    Pubkey::from_str("pRoFiTj36haRD5sG2Neqib9KoSrtdYMGrM7SEkZetfR").unwrap()
 }
 
 #[cfg(feature = "localnet")]
@@ -64,5 +64,5 @@ pub fn profit_mint() -> Pubkey {
 
 #[cfg(not(any(feature = "devnet", feature = "localnet")))]
 pub fn profit_mint() -> Pubkey {
-    Pubkey::from_str("Eaipvk74Cw7CYUJNafsai9jxQ913V76MF9EfdQ3nNp2a").unwrap()
+    Pubkey::from_str("pRoFiTj36haRD5sG2Neqib9KoSrtdYMGrM7SEkZetfR").unwrap()
 }
