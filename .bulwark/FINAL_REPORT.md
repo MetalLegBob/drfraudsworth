@@ -62,7 +62,7 @@ This audit identified 142 total findings: 73 confirmed vulnerabilities, 13 poten
 
 **Status:** CONFIRMED | **Severity:** CRITICAL | **Evolution:** NEW
 
-A real Solana private key (`2zJgKnGr...`) is committed in `.mcp.json` line 8 and has been in git history since commit `53ca01b` (pushed to `origin/main`). The key derives to public key `8kPzhQoUPx7LYM18f9TzskW4ZgvGyq4jMPYZikqmHMH4` — the primary devnet wallet holding ~59.5 SOL. This wallet is also the upgrade authority for all 6 devnet programs. The file is actively tracked (`git ls-files` returns it) and NOT in `.gitignore`.
+A real Solana private key (`[REDACTED-DEVNET-PRIVKEY-PREFIX]...`) is committed in `.mcp.json` line 8 and has been in git history since commit `53ca01b` (pushed to `origin/main`). The key derives to public key `8kPzhQoUPx7LYM18f9TzskW4ZgvGyq4jMPYZikqmHMH4` — the primary devnet wallet holding ~59.5 SOL. This wallet is also the upgrade authority for all 6 devnet programs. The file is actively tracked (`git ls-files` returns it) and NOT in `.gitignore`.
 
 **Affected code:** `.mcp.json:8`, `.gitignore` (missing entry)
 **Impact:** Fund theft of devnet SOL, program upgrade authority compromise, AI tool exfiltration vector (`.mcp.json` is read by Claude Code at session start).

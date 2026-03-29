@@ -118,6 +118,7 @@ async function buildStepTransaction(
         amountInLamports: step.inputAmount,
         minimumOutput,
         isCrime,
+        taxBps: step.taxBps,
         priorityFeeMicroLamports,
       });
     } else {
@@ -351,12 +352,12 @@ export async function buildAtomicRoute(
     // For intermediate hops within a leg, use the previous step's guaranteed
     // minimum output as this step's input (safe: AMM enforces this on-chain).
     // For new legs or the first step, use the step's own quoted inputAmount.
-    const effectiveInput =
+    const effectiveInput: number =
       isNewLeg || previousMinimumOutput === null
         ? step.inputAmount
         : previousMinimumOutput;
 
-    const effectiveStep =
+    const effectiveStep: RouteStep =
       effectiveInput !== step.inputAmount
         ? { ...step, inputAmount: effectiveInput }
         : step;
@@ -382,7 +383,14 @@ export async function buildAtomicRoute(
     );
     stepTransactions.push(tx);
 
-    previousMinimumOutput = minimumOutput;
+    // Vault conversions are deterministic (100:1, zero slippage). The actual
+    // on-chain output is always the full outputAmount, not the slippage-reduced
+    // minimumOutput. Use the exact vault output as the next step's input to
+    // prevent intermediate token leakage (e.g., PROFIT→CRIME→SOL leaving
+    // ~5% CRIME stranded when slippage is applied to the vault step).
+    previousMinimumOutput = step.pool.includes("Vault")
+      ? effectiveStep.outputAmount
+      : minimumOutput;
   }
 
   // 3. Process instructions: strip duplicates, make ATAs idempotent

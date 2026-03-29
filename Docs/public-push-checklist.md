@@ -204,9 +204,21 @@ These are secrets we KNOW exist in the private repo. Verify NONE appear in the p
 
 ---
 
+## Phase 7: Double Clean Sweep Gate
+
+**Two consecutive clean sweeps are MANDATORY before presenting to the user for approval.**
+
+- [ ] **Sweep 1**: Run ALL checks from Phases 1-6 above. Fix any issues found.
+- [ ] **Sweep 2**: Re-run ALL checks from Phases 1-6 with zero fixes needed. If ANY fix is required during Sweep 2, reset the counter — you need two MORE consecutive clean sweeps.
+- [ ] Both sweeps documented with timestamps
+
+**Why:** Phase 109 found 4 additional issues on a second pass that the first pass missed (devnet mint keypairs, personal paths, partial keypair bytes). A single pass is not sufficient — fixes during one pass can introduce new issues or miss patterns that only become visible after other files are removed/modified.
+
+---
+
 ## Push
 
-Only after ALL checkboxes above are checked:
+Only after ALL checkboxes above are checked AND two consecutive clean sweeps pass:
 
 ```bash
 cd /tmp/drfraudsworth-public

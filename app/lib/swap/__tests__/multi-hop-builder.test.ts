@@ -221,7 +221,7 @@ describe("buildAtomicRoute amount chaining", () => {
   // 3. 2-hop buy: SOL -> CRIME -> PROFIT
   // =========================================================================
 
-  it("2-hop buy: step 2 input = step 1 minimumOutput (safe chaining)", async () => {
+  it("2-hop buy: step 2 vault uses convert-all (reads on-chain balance)", async () => {
     const route = makeRoute("SOL", "PROFIT", 100_000_000, 4_500_000, [
       step("CRIME/SOL", "SOL", "CRIME", 100_000_000, 450_000_000),
       step("CRIME/Vault", "CRIME", "PROFIT", 450_000_000, 4_500_000),
@@ -235,19 +235,17 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps[0].type).toBe("solBuy");
     expect(capturedSteps[0].inputAmount).toBe(100_000_000);
 
-    // Step 2: vault convert — gets step 1's minimumOutput, NOT the quoted 450M
-    const step1MinOutput = withSlippage(450_000_000);
+    // Step 2: vault convert — convert-all mode (amount_in=0) reads user's
+    // on-chain balance deposited by the preceding AMM step. No leakage.
     expect(capturedSteps[1].type).toBe("vaultConvert");
-    expect(capturedSteps[1].inputAmount).toBe(step1MinOutput);
-    // This is the ~1% leak — step 2 converts only 99% of step 1's expected output
-    expect(capturedSteps[1].inputAmount).toBeLessThan(450_000_000);
+    expect(capturedSteps[1].inputAmount).toBe(0); // convert-all
   });
 
   // =========================================================================
   // 4. 2-hop sell: PROFIT -> CRIME -> SOL
   // =========================================================================
 
-  it("2-hop sell: step 2 input = step 1 minimumOutput (safe chaining)", async () => {
+  it("2-hop sell: step 2 input = vault full output (deterministic, no slippage)", async () => {
     const route = makeRoute("PROFIT", "SOL", 4_500_000, 80_000_000, [
       step("CRIME/Vault", "PROFIT", "CRIME", 4_500_000, 450_000_000),
       step("CRIME/SOL", "CRIME", "SOL", 450_000_000, 80_000_000),
@@ -261,10 +259,10 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps[0].type).toBe("vaultConvert");
     expect(capturedSteps[0].inputAmount).toBe(4_500_000);
 
-    // Step 2: AMM sell — gets step 1's minimumOutput
-    const step1MinOutput = withSlippage(450_000_000);
+    // Step 2: AMM sell — gets vault's FULL output (vault is deterministic,
+    // no slippage applied to chained input). Prevents intermediate token leakage.
     expect(capturedSteps[1].type).toBe("solSell");
-    expect(capturedSteps[1].inputAmount).toBe(step1MinOutput);
+    expect(capturedSteps[1].inputAmount).toBe(450_000_000);
   });
 
   // =========================================================================
@@ -289,20 +287,19 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps[0].type).toBe("solBuy");
     expect(capturedSteps[0].inputAmount).toBe(120_000_000);
 
-    // Leg 1, step 1: vault convert — gets step 0's minimumOutput
-    const step0MinOutput = withSlippage(540_000_000);
+    // Leg 1, step 1: vault convert — convert-all mode (amount_in=0) reads
+    // on-chain balance deposited by the preceding AMM step
     expect(capturedSteps[1].type).toBe("vaultConvert");
-    expect(capturedSteps[1].inputAmount).toBe(step0MinOutput);
+    expect(capturedSteps[1].inputAmount).toBe(0); // convert-all
 
     // Leg 2, step 2: SOL buy FRAUD — FRESH start, uses its own inputAmount
     // NOT step 1's minimumOutput (which would be PROFIT amount, wrong token!)
     expect(capturedSteps[2].type).toBe("solBuy");
     expect(capturedSteps[2].inputAmount).toBe(80_000_000);
 
-    // Leg 2, step 3: vault convert — gets step 2's minimumOutput
-    const step2MinOutput = withSlippage(360_000_000);
+    // Leg 2, step 3: vault convert — convert-all mode
     expect(capturedSteps[3].type).toBe("vaultConvert");
-    expect(capturedSteps[3].inputAmount).toBe(step2MinOutput);
+    expect(capturedSteps[3].inputAmount).toBe(0); // convert-all
   });
 
   // =========================================================================
@@ -331,23 +328,21 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps[0].type).toBe("vaultConvert");
     expect(capturedSteps[0].inputAmount).toBe(5_400_000);
 
-    // Leg 1, step 1: sell CRIME→SOL — gets step 0's minimumOutput
-    const step0MinOutput = withSlippage(540_000_000);
+    // Leg 1, step 1: sell CRIME→SOL — gets vault's FULL output (deterministic)
     expect(capturedSteps[1].type).toBe("solSell");
-    expect(capturedSteps[1].inputAmount).toBe(step0MinOutput);
+    expect(capturedSteps[1].inputAmount).toBe(540_000_000);
 
     // Leg 2, step 2: vault convert PROFIT→FRAUD — FRESH start
-    // CRITICAL: must be 3_600_000 (PROFIT), NOT step 1's SOL minimumOutput
+    // CRITICAL: must be 3_600_000 (PROFIT), NOT leg 1's SOL minimumOutput
     expect(capturedSteps[2].type).toBe("vaultConvert");
     expect(capturedSteps[2].inputAmount).toBe(3_600_000);
     // Verify it's not contaminated by step 1's SOL output
     const step1MinOutput = withSlippage(96_000_000);
     expect(capturedSteps[2].inputAmount).not.toBe(step1MinOutput);
 
-    // Leg 2, step 3: sell FRAUD→SOL — gets step 2's minimumOutput
-    const step2MinOutput = withSlippage(360_000_000);
+    // Leg 2, step 3: sell FRAUD→SOL — gets vault's FULL output (deterministic)
     expect(capturedSteps[3].type).toBe("solSell");
-    expect(capturedSteps[3].inputAmount).toBe(step2MinOutput);
+    expect(capturedSteps[3].inputAmount).toBe(360_000_000);
   });
 
   // =========================================================================
@@ -401,13 +396,13 @@ describe("buildAtomicRoute amount chaining", () => {
 
     // Leg 1: vault converts 122M PROFIT (original amount)
     expect(capturedSteps[0].inputAmount).toBe(122_000_000);
-    // Leg 1: sell uses vault's minimumOutput
-    expect(capturedSteps[1].inputAmount).toBe(withSlippage(12_200_000_000));
+    // Leg 1: sell uses vault's FULL output (deterministic, no slippage leak)
+    expect(capturedSteps[1].inputAmount).toBe(12_200_000_000);
 
     // Leg 2: vault converts 15.62M PROFIT (its own amount, NOT leg 1's SOL)
     expect(capturedSteps[2].inputAmount).toBe(15_620_000);
-    // Leg 2: sell uses vault's minimumOutput
-    expect(capturedSteps[3].inputAmount).toBe(withSlippage(1_562_000_000));
+    // Leg 2: sell uses vault's FULL output (deterministic, no slippage leak)
+    expect(capturedSteps[3].inputAmount).toBe(1_562_000_000);
 
     // The OLD bug: step 2 would have received step 1's SOL minimumOutput
     const oldBugValue = withSlippage(168_000_000);
@@ -429,10 +424,8 @@ describe("buildAtomicRoute amount chaining", () => {
 
     expect(capturedSteps).toHaveLength(2);
 
-    // Step 2 chains from step 1's minimumOutput (not its own quoted input)
-    const step1MinOutput = withSlippage(500_000_000);
-    expect(capturedSteps[1].inputAmount).toBe(step1MinOutput);
-    expect(capturedSteps[1].inputAmount).not.toBe(500_000_000);
+    // Step 2 chains from vault's FULL output (deterministic, no slippage reduction)
+    expect(capturedSteps[1].inputAmount).toBe(500_000_000);
   });
 
   // =========================================================================
@@ -450,8 +443,8 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps).toHaveLength(2);
     expect(capturedSteps[0].inputAmount).toBe(4_500_000);
 
-    const step1MinOutput = withSlippage(450_000_000);
-    expect(capturedSteps[1].inputAmount).toBe(step1MinOutput);
+    // AMM gets vault's FULL output (deterministic, no slippage reduction)
+    expect(capturedSteps[1].inputAmount).toBe(450_000_000);
   });
 
   // =========================================================================
@@ -480,10 +473,10 @@ describe("buildAtomicRoute amount chaining", () => {
 
     await buildAtomicRoute(highSlippageRoute, conn, USER, 10_000);
 
-    // With 5% slippage, step 2 should get 95% of step 1's output
-    const expected = Math.floor(4_500_000_000 * 9_500 / 10_000);
-    expect(capturedSteps[1].inputAmount).toBe(expected);
-    expect(capturedSteps[1].inputAmount).toBe(4_275_000_000);
+    // Step 2 is a vault in convert-all mode (amount_in=0).
+    // It reads the on-chain balance deposited by the preceding AMM step.
+    expect(capturedSteps[1].type).toBe("vaultConvert");
+    expect(capturedSteps[1].inputAmount).toBe(0); // convert-all
   });
 
   // =========================================================================
@@ -504,10 +497,9 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps[0].inputAmount).toBe(100_000_000);
     expect(capturedSteps[2].inputAmount).toBe(100_000_000);
 
-    // Both leg step-2s get their respective step-1's minimumOutput
-    const minOutput = withSlippage(450_000_000);
-    expect(capturedSteps[1].inputAmount).toBe(minOutput);
-    expect(capturedSteps[3].inputAmount).toBe(minOutput);
+    // Both leg step-2s are vaults in convert-all mode (amount_in=0)
+    expect(capturedSteps[1].inputAmount).toBe(0); // convert-all
+    expect(capturedSteps[3].inputAmount).toBe(0); // convert-all
   });
 
   // =========================================================================
@@ -528,8 +520,8 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps[2].inputAmount).toBe(500_000);
     expect(capturedSteps[2].inputAmount).not.toBe(withSlippage(171_000_000));
 
-    // Leg 2 step 3 (sell): gets step 2's minimumOutput
-    expect(capturedSteps[3].inputAmount).toBe(withSlippage(50_000_000));
+    // Leg 2 step 3 (sell): gets vault's FULL output (deterministic)
+    expect(capturedSteps[3].inputAmount).toBe(50_000_000);
   });
 
   // =========================================================================
@@ -550,5 +542,49 @@ describe("buildAtomicRoute amount chaining", () => {
       expect(captured.minimumOutput).toBeLessThanOrEqual(captured.inputAmount * 1000);
       expect(captured.minimumOutput).toBeGreaterThan(0);
     }
+  });
+
+  // =========================================================================
+  // 15. Regression: vault→AMM must pass full vault output to prevent leakage
+  //     TX nmkYW... — vault produced 88,094.27 CRIME, AMM only consumed ~83,689
+  //     because slippage was applied to the deterministic vault output.
+  // =========================================================================
+
+  it("vault→AMM: AMM receives vault full output, not slippage-reduced", async () => {
+    // Simulate the exact leakage scenario: 5% slippage, PROFIT→CRIME→SOL
+    const highSlippageRoute: Route = {
+      inputToken: "PROFIT",
+      outputToken: "SOL",
+      inputAmount: 880_942_700, // ~880.94 PROFIT (6 decimals)
+      outputAmount: 150_000_000,
+      minimumOutput: Math.floor(150_000_000 * 9_500 / 10_000), // 5% slippage
+      steps: [
+        step("CRIME/Vault", "PROFIT", "CRIME", 880_942_700, 88_094_270_000),
+        step("CRIME/SOL", "CRIME", "SOL", 88_094_270_000, 150_000_000),
+      ],
+      hops: 2,
+      isSplit: false,
+      label: "test",
+      totalLpFee: 0,
+      totalTax: 0,
+      totalPriceImpactBps: 0,
+      totalFeePct: "0%",
+    };
+
+    await buildAtomicRoute(highSlippageRoute, conn, USER, 10_000);
+
+    expect(capturedSteps).toHaveLength(2);
+
+    // Vault step: gets original PROFIT input
+    expect(capturedSteps[0].type).toBe("vaultConvert");
+    expect(capturedSteps[0].inputAmount).toBe(880_942_700);
+
+    // AMM step: gets vault's FULL output — NOT slippage-reduced.
+    // Old bug: would receive 88_094_270_000 * 0.95 = 83_689_556_500 (leaking ~4.4B base units)
+    expect(capturedSteps[1].type).toBe("solSell");
+    expect(capturedSteps[1].inputAmount).toBe(88_094_270_000); // full vault output
+    expect(capturedSteps[1].inputAmount).not.toBe(
+      Math.floor(88_094_270_000 * 9_500 / 10_000), // old bug value
+    );
   });
 });

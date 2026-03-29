@@ -29,7 +29,7 @@
 **Estimated Priority:** Tier 1
 **Hypothesis:** Attacker extracts committed Solana private key from `.mcp.json` in git history and drains any funds sent to that wallet.
 **Attack Vector:** Clone repo → `git log -p .mcp.json` → extract base58 key → import to wallet → steal SOL/tokens.
-**Target Code:** `.mcp.json:8` (key: `2zJgKnGr...`), `.gitignore` (missing `.mcp.json`)
+**Target Code:** `.mcp.json:8` (key: `[REDACTED-DEVNET-PRIVKEY-PREFIX]...`), `.gitignore` (missing `.mcp.json`)
 **Potential Impact:** CRITICAL — fund theft if wallet ever receives mainnet SOL
 **Requires:** Repository read access (public or collaborator)
 **Investigation Approach:** Verify key is real, check wallet balance, confirm git tracking status.

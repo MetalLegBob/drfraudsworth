@@ -68,6 +68,10 @@ export interface SolBuyParams {
   minimumOutput: number;
   /** true = CRIME pool, false = FRAUD pool */
   isCrime: boolean;
+  /** Buy tax rate in basis points (from EpochState). Used to wrap only
+   *  the post-tax portion as WSOL, preventing wallet simulation failure
+   *  when the user spends near their full SOL balance. */
+  taxBps: number;
   /** Compute unit limit (default 200,000) */
   computeUnits?: number;
   /** Priority fee in microLamports per compute unit (default 0) */
@@ -202,6 +206,7 @@ export async function buildSolBuyTransaction(params: SolBuyParams): Promise<Tran
     amountInLamports,
     minimumOutput,
     isCrime,
+    taxBps,
     computeUnits = DEFAULT_COMPUTE_UNITS,
     priorityFeeMicroLamports = 0,
   } = params;
@@ -217,10 +222,18 @@ export async function buildSolBuyTransaction(params: SolBuyParams): Promise<Tran
   }
 
   // 2. WSOL wrap instructions (create ATA if needed + SOL transfer + syncNative)
+  //    Wrap only the post-tax portion as WSOL. On-chain, the program transfers
+  //    tax as native SOL via system_instruction::transfer, then sends sol_to_swap
+  //    WSOL to the AMM. Wrapping the full amountInLamports causes a mid-TX
+  //    double-dip: the user needs amountIn + taxAmount peak SOL, causing wallet
+  //    simulation failure when spending near full balance (MAX button).
+  //    Formula matches on-chain calculate_tax: floor(amount * bps / 10_000).
+  const taxAmountLamports = Math.floor(amountInLamports * taxBps / 10_000);
+  const solToSwapLamports = amountInLamports - taxAmountLamports;
   const wsolInstructions = await buildWsolWrapInstructions(
     connection,
     userPublicKey,
-    amountInLamports,
+    solToSwapLamports,
   );
   for (const ix of wsolInstructions) {
     tx.add(ix);

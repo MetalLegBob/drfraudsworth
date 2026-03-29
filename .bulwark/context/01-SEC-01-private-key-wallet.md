@@ -31,7 +31,7 @@ severity_breakdown: {critical: 1, high: 2, medium: 3, low: 3}
 
 ## Key Findings (Top 9)
 
-1. **CRITICAL — Solana private key committed in `.mcp.json`**: A base58-encoded Solana private key (`2zJgKnGr...`) is hardcoded in `.mcp.json` line 8, which is tracked by git (confirmed via `git ls-files`). This key has been in git history since at least commit `53ca01b`. Even if removed from HEAD, it persists in git history. — `.mcp.json:8`
+1. **CRITICAL — Solana private key committed in `.mcp.json`**: A base58-encoded Solana private key (`[REDACTED-DEVNET-PRIVKEY-PREFIX]...`) is hardcoded in `.mcp.json` line 8, which is tracked by git (confirmed via `git ls-files`). This key has been in git history since at least commit `53ca01b`. Even if removed from HEAD, it persists in git history. — `.mcp.json:8`
 
 2. **HIGH — 17 devnet keypair files committed to git**: The `keypairs/` directory has 17+ keypair JSON files tracked in git (devnet-wallet, squads-signer-1/2/3, program deploy keypairs, etc.). These are Solana keypair files containing secret keys. While devnet-only, git history preserves them permanently. H005 from Audit #1 flagged this as PARTIALLY_FIXED — no remediation observed in this delta. — `keypairs/*.json` (git-tracked)
 
@@ -339,7 +339,7 @@ Error messages must not leak key material. The crank provider truncates error me
 ## Risk Observations
 
 ### 1. Private Key in `.mcp.json` — CRITICAL
-**What:** Base58-encoded Solana private key at `.mcp.json:8`: `"SOLANA_PRIVATE_KEY": "2zJgKnGr..."`. File is tracked by git since commit `53ca01b`.
+**What:** Base58-encoded Solana private key at `.mcp.json:8`: `"SOLANA_PRIVATE_KEY": "[REDACTED-DEVNET-PRIVKEY-PREFIX]..."`. File is tracked by git since commit `53ca01b`.
 **Why risky:** Anyone with repo access (current or historical) has this private key. If this wallet ever receives mainnet SOL (even accidentally via airdrop or transfer), those funds are immediately extractable.
 **Impact:** Immediate fund theft if wallet has any value. Reputational damage if discovered.
 **Remediation:** (1) Rotate the key immediately (generate new keypair). (2) Run BFG Repo-Cleaner to purge from git history. (3) Add `.mcp.json` to `.gitignore`. (4) Force push cleaned history.

@@ -1,5 +1,5 @@
 [workspace]
-members = ["programs/*", "tests/cross-crate"]
+members = ["programs/*", "tests/cross-crate", "sdk/jupiter-adapter"]
 resolver = "2"
 
 [profile.release]

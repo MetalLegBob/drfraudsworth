@@ -1,0 +1,3102 @@
+{
+  "address": "DpX3AhSU3BELfBiGbmBMYLPp8VAy3jbEVt6bQjrxUarV",
+  "metadata": {
+    "name": "bonding_curve",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Dr Fraudsworth Bonding Curve - Linear price discovery for CRIME and FRAUD"
+  },
+  "instructions": [
+    {
+      "name": "burn_bc_admin",
+      "docs": [
+        "Permanently burn the admin key by setting authority to Pubkey::default().",
+        "After this, all admin-gated instructions become permanently uncallable.",
+        "Irreversible. Only the current authority can call this."
+      ],
+      "discriminator": [
+        130,
+        113,
+        240,
+        122,
+        168,
+        198,
+        235,
+        246
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "The current authority. Must match admin_config.authority."
+          ],
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "The BcAdminConfig PDA. After this instruction, authority will be Pubkey::default()."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_refund",
+      "docs": [
+        "Burn tokens and claim proportional SOL refund.",
+        "User-signed: burns the caller's entire token balance."
+      ],
+      "discriminator": [
+        15,
+        16,
+        30,
+        161,
+        255,
+        228,
+        97,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "docs": [
+            "The user claiming the refund. Receives SOL."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA. Seeds: [\"curve\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "partner_curve_state",
+          "docs": [
+            "Partner CurveState PDA (read-only).",
+            "Required for is_refund_eligible() compound state check.",
+            "Must be a different curve than curve_state."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "partner_curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token_account",
+          "docs": [
+            "User's ATA for this token. Must already exist (user holds tokens).",
+            "Marked mut because burn deducts from this account."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_mint",
+          "docs": [
+            "Token mint (CRIME or FRAUD).",
+            "Marked mut because burn reduces the mint's total_supply."
+          ],
+          "writable": true
+        },
+        {
+          "name": "sol_vault",
+          "docs": [
+            "SOL vault PDA -- sends SOL refund to user.",
+            "Seeds: [\"curve_sol_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_token_vault",
+      "docs": [
+        "Close a graduated curve's empty token vault, recovering rent to admin.",
+        "Admin-only: only the protocol deployer can call.",
+        "Vault must have 0 token balance."
+      ],
+      "discriminator": [
+        30,
+        14,
+        239,
+        231,
+        79,
+        189,
+        15,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Protocol authority (deployer). Must match BcAdminConfig.authority. Receives rent."
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "BcAdminConfig PDA -- gates admin operations."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA -- must be Graduated.",
+            "Seeds: [\"curve\", token_mint]. Acts as token vault authority for close CPI."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault",
+          "docs": [
+            "Token vault PDA to close. Must be empty (0 token balance).",
+            "Seeds: [\"curve_token_vault\", token_mint]. Validated against curve_state."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint",
+          "docs": [
+            "Token mint (for close_account CPI context)."
+          ]
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token-2022 program (CRIME/FRAUD use Token-2022)."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "consolidate_for_refund",
+      "docs": [
+        "Consolidate tax escrow into SOL vault for refunds.",
+        "Permissionless: anyone can call once the curve is refund-eligible."
+      ],
+      "discriminator": [
+        71,
+        201,
+        201,
+        251,
+        86,
+        195,
+        59,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA for the curve being consolidated.",
+            "Seeds: [\"curve\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "partner_curve_state",
+          "docs": [
+            "Partner CurveState PDA (read-only).",
+            "Required for is_refund_eligible() compound state check.",
+            "Must be a different curve than curve_state (prevents passing same curve",
+            "as its own partner, which would bypass the partner status check)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "partner_curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tax_escrow",
+          "docs": [
+            "Tax escrow PDA -- SOL-only, owned by bonding curve program.",
+            "Seeds: [\"tax_escrow\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  120,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "docs": [
+            "SOL vault PDA -- receives consolidated escrow lamports.",
+            "Seeds: [\"curve_sol_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "distribute_tax_escrow",
+      "docs": [
+        "Distribute tax escrow SOL to the carnage fund after graduation.",
+        "Permissionless: anyone can call once the curve has graduated."
+      ],
+      "discriminator": [
+        79,
+        252,
+        87,
+        113,
+        187,
+        44,
+        217,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA (read-only -- no state mutations).",
+            "Seeds: [\"curve\", token_mint]."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tax_escrow",
+          "docs": [
+            "Tax escrow PDA -- SOL-only, owned by bonding curve program.",
+            "Seeds: [\"tax_escrow\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  120,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "carnage_fund",
+          "docs": [
+            "Carnage fund SOL vault PDA (owned by epoch program)."
+          ],
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "fund_curve",
+      "docs": [
+        "Fund the curve's token vault with the 460M tokens for sale.",
+        "Must be called after initialize_curve and before start_curve.",
+        "Accepts remaining_accounts for Transfer Hook support."
+      ],
+      "discriminator": [
+        107,
+        84,
+        250,
+        5,
+        251,
+        214,
+        240,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Protocol authority. Must match BcAdminConfig.authority. Signs the token transfer."
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "BcAdminConfig PDA -- gates admin operations."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA -- must be in Initialized status.",
+            "Not mutated (status doesn't change on fund, only on start)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority_token_account",
+          "docs": [
+            "Authority's token account (source of 460M tokens).",
+            "This is typically the admin's ATA for this token."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_vault",
+          "docs": [
+            "Curve's token vault PDA (destination).",
+            "Authority is curve_state PDA (set during initialize_curve)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint",
+          "docs": [
+            "Token mint for transfer_checked decimals validation."
+          ]
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_bc_admin",
+      "docs": [
+        "Initialize the BcAdminConfig PDA. Only callable by the program's",
+        "upgrade authority (verified via ProgramData). Stores the admin pubkey",
+        "that gates all admin-only instructions."
+      ],
+      "discriminator": [
+        112,
+        40,
+        233,
+        97,
+        54,
+        70,
+        4,
+        246
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "The program's upgrade authority. Must sign to prove deployer identity."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "The BcAdminConfig PDA. Initialized once; stores the authority pubkey and bump.",
+            "Seeds: [b\"bc_admin\"]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program",
+          "docs": [
+            "The BondingCurve program itself -- used to look up its programdata address."
+          ],
+          "address": "DpX3AhSU3BELfBiGbmBMYLPp8VAy3jbEVt6bQjrxUarV"
+        },
+        {
+          "name": "program_data",
+          "docs": [
+            "The program's ProgramData account (created by the BPF loader on deploy).",
+            "Constraint: its upgrade_authority_address must equal the signing authority.",
+            "This is how we verify the caller is the deployer."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "initialize_curve",
+      "docs": [
+        "Initialize a CurveState PDA for a given token (CRIME or FRAUD).",
+        "Creates the curve in `Initialized` status with all counters zeroed.",
+        "Also creates token vault, SOL vault, and tax escrow PDAs.",
+        "Admin-only: only the protocol authority can call this."
+      ],
+      "discriminator": [
+        170,
+        84,
+        186,
+        253,
+        131,
+        149,
+        95,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Protocol authority. Must match BcAdminConfig.authority. Pays rent for all new accounts."
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "BcAdminConfig PDA -- gates admin operations."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA -- seeds: [\"curve\", token_mint].",
+            "Initialized with space for the full CurveState struct."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault",
+          "docs": [
+            "Token vault PDA -- holds 460M tokens for sale.",
+            "Authority is the curve_state PDA (transfers out require PDA signer).",
+            "Seeds: [\"curve_token_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "docs": [
+            "SOL vault PDA -- 0-byte SOL-only account that holds raised SOL.",
+            "Balance is tracked via lamports, not data fields.",
+            "Seeds: [\"curve_sol_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tax_escrow",
+          "docs": [
+            "Tax escrow PDA -- 0-byte SOL-only account that holds sell tax.",
+            "See Bonding_Curve_Spec.md Section 5.7.",
+            "Seeds: [\"tax_escrow\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  120,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint",
+          "docs": [
+            "Token mint (CRIME or FRAUD). Validated via feature-gated constraint.",
+            "In localnet mode, any mint is accepted for testing flexibility."
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "token",
+          "type": {
+            "defined": {
+              "name": "Token"
+            }
+          }
+        },
+        {
+          "name": "partner_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "mark_failed",
+      "docs": [
+        "Mark a curve as Failed after deadline + grace buffer expires.",
+        "Permissionless: anyone can call once the deadline has passed."
+      ],
+      "discriminator": [
+        58,
+        234,
+        53,
+        63,
+        84,
+        15,
+        46,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA. Seeds: [\"curve\", token_mint].",
+            "Status check is in handler (not constraint) for specific error messages."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "prepare_transition",
+      "docs": [
+        "Transition both curves from Filled to Graduated.",
+        "Admin-only: only the protocol deployer can call."
+      ],
+      "discriminator": [
+        2,
+        73,
+        144,
+        243,
+        89,
+        165,
+        158,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Protocol authority (deployer). Must match BcAdminConfig.authority."
+          ],
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "BcAdminConfig PDA -- gates admin operations."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "crime_curve_state",
+          "docs": [
+            "CRIME CurveState PDA. Seeds: [\"curve\", crime_token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "crime_curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fraud_curve_state",
+          "docs": [
+            "FRAUD CurveState PDA. Seeds: [\"curve\", fraud_token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "fraud_curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "purchase",
+      "docs": [
+        "Purchase tokens from the curve with SOL.",
+        "Walks the linear price curve forward, enforces per-wallet cap and minimum purchase.",
+        "Accepts remaining_accounts for Transfer Hook support (CRIME/FRAUD use Token-2022 hooks)."
+      ],
+      "discriminator": [
+        21,
+        93,
+        113,
+        154,
+        193,
+        160,
+        242,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "docs": [
+            "The buyer. Pays SOL and receives tokens."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA -- must be Active. Seeds: [\"curve\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token_account",
+          "docs": [
+            "User's ATA for this token. Created if it doesn't exist (init_if_needed).",
+            "Used for wallet cap enforcement (read balance before transfer)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_vault",
+          "docs": [
+            "Curve's token vault PDA. Authority is curve_state PDA.",
+            "Seeds: [\"curve_token_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "docs": [
+            "SOL vault PDA -- 0-byte SOL-only account that holds raised SOL.",
+            "Seeds: [\"curve_sol_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint",
+          "docs": [
+            "Token mint (CRIME or FRAUD)."
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "sol_amount",
+          "type": "u64"
+        },
+        {
+          "name": "minimum_tokens_out",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "sell",
+      "docs": [
+        "Sell tokens back to the curve for SOL minus 15% tax.",
+        "Tax is routed to a separate escrow PDA.",
+        "Accepts remaining_accounts for Transfer Hook support."
+      ],
+      "discriminator": [
+        51,
+        230,
+        133,
+        164,
+        1,
+        127,
+        131,
+        173
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "docs": [
+            "The seller. Receives SOL minus tax."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA -- must be Active. Seeds: [\"curve\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token_account",
+          "docs": [
+            "User's ATA for this token. Must already exist (seller owns tokens)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_vault",
+          "docs": [
+            "Curve's token vault PDA. Receives tokens back from seller.",
+            "Seeds: [\"curve_token_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "docs": [
+            "SOL vault PDA -- sends SOL to user and tax to escrow.",
+            "Seeds: [\"curve_sol_vault\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tax_escrow",
+          "docs": [
+            "Tax escrow PDA -- receives 15% sell tax.",
+            "Seeds: [\"tax_escrow\", token_mint]."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  120,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint",
+          "docs": [
+            "Token mint (CRIME or FRAUD)."
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tokens_to_sell",
+          "type": "u64"
+        },
+        {
+          "name": "minimum_sol_out",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "start_curve",
+      "docs": [
+        "Activate the curve: sets status to Active, records start_slot and deadline_slot.",
+        "Validates that the token vault is fully funded before activation."
+      ],
+      "discriminator": [
+        145,
+        211,
+        49,
+        178,
+        173,
+        221,
+        188,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Protocol authority. Must match BcAdminConfig.authority."
+          ],
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "BcAdminConfig PDA -- gates admin operations."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA -- must be in Initialized status. Mutated to Active."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault",
+          "docs": [
+            "Token vault PDA -- read-only to check balance >= TARGET_TOKENS."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_mint",
+          "docs": [
+            "Token mint for vault validation."
+          ]
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "transfer_bc_admin",
+      "docs": [
+        "Transfer the admin authority to a new pubkey (e.g., Squads multisig vault).",
+        "Only the current authority can call this. new_authority must not be Pubkey::default()."
+      ],
+      "discriminator": [
+        219,
+        248,
+        102,
+        85,
+        182,
+        244,
+        4,
+        229
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "The current authority. Must match admin_config.authority."
+          ],
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "The BcAdminConfig PDA. After this instruction, authority will be new_authority."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_graduated_sol",
+      "docs": [
+        "Withdraw SOL from a graduated curve's SOL vault.",
+        "Admin-only: only the protocol deployer can call.",
+        "Leaves rent-exempt minimum in vault. Idempotent."
+      ],
+      "discriminator": [
+        157,
+        131,
+        148,
+        227,
+        83,
+        126,
+        26,
+        20
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Protocol authority (deployer). Must match BcAdminConfig.authority. Receives SOL."
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "admin_config"
+          ]
+        },
+        {
+          "name": "admin_config",
+          "docs": [
+            "BcAdminConfig PDA -- gates admin operations."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  99,
+                  95,
+                  97,
+                  100,
+                  109,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "curve_state",
+          "docs": [
+            "CurveState PDA -- must be Graduated.",
+            "Seeds: [\"curve\", token_mint]."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "docs": [
+            "SOL vault PDA -- source of SOL.",
+            "Seeds: [\"curve_sol_vault\", token_mint]. Validated against curve_state.sol_vault."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  117,
+                  114,
+                  118,
+                  101,
+                  95,
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "curve_state.token_mint",
+                "account": "CurveState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "BcAdminConfig",
+      "discriminator": [
+        219,
+        130,
+        36,
+        135,
+        38,
+        220,
+        117,
+        35
+      ]
+    },
+    {
+      "name": "CurveState",
+      "discriminator": [
+        198,
+        152,
+        48,
+        255,
+        91,
+        4,
+        10,
+        197
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CurveFailed",
+      "discriminator": [
+        108,
+        71,
+        25,
+        105,
+        114,
+        115,
+        86,
+        164
+      ]
+    },
+    {
+      "name": "CurveFilled",
+      "discriminator": [
+        232,
+        202,
+        225,
+        20,
+        243,
+        144,
+        91,
+        100
+      ]
+    },
+    {
+      "name": "CurveFunded",
+      "discriminator": [
+        202,
+        206,
+        210,
+        180,
+        127,
+        120,
+        93,
+        103
+      ]
+    },
+    {
+      "name": "CurveInitialized",
+      "discriminator": [
+        190,
+        125,
+        131,
+        238,
+        194,
+        229,
+        201,
+        66
+      ]
+    },
+    {
+      "name": "CurveStarted",
+      "discriminator": [
+        122,
+        40,
+        67,
+        86,
+        1,
+        206,
+        50,
+        203
+      ]
+    },
+    {
+      "name": "EscrowConsolidated",
+      "discriminator": [
+        60,
+        22,
+        107,
+        62,
+        113,
+        162,
+        204,
+        216
+      ]
+    },
+    {
+      "name": "EscrowDistributed",
+      "discriminator": [
+        58,
+        107,
+        128,
+        41,
+        125,
+        252,
+        91,
+        239
+      ]
+    },
+    {
+      "name": "RefundClaimed",
+      "discriminator": [
+        136,
+        64,
+        242,
+        99,
+        4,
+        244,
+        208,
+        130
+      ]
+    },
+    {
+      "name": "SolWithdrawn",
+      "discriminator": [
+        145,
+        249,
+        69,
+        48,
+        206,
+        86,
+        91,
+        66
+      ]
+    },
+    {
+      "name": "TaxCollected",
+      "discriminator": [
+        101,
+        55,
+        1,
+        91,
+        200,
+        239,
+        83,
+        30
+      ]
+    },
+    {
+      "name": "TokenVaultClosed",
+      "discriminator": [
+        205,
+        163,
+        41,
+        212,
+        150,
+        236,
+        142,
+        154
+      ]
+    },
+    {
+      "name": "TokensPurchased",
+      "discriminator": [
+        214,
+        119,
+        105,
+        186,
+        114,
+        205,
+        228,
+        181
+      ]
+    },
+    {
+      "name": "TokensSold",
+      "discriminator": [
+        217,
+        83,
+        68,
+        137,
+        134,
+        225,
+        94,
+        45
+      ]
+    },
+    {
+      "name": "TransitionComplete",
+      "discriminator": [
+        50,
+        138,
+        150,
+        95,
+        120,
+        0,
+        144,
+        94
+      ]
+    },
+    {
+      "name": "TransitionPrepared",
+      "discriminator": [
+        254,
+        166,
+        230,
+        228,
+        223,
+        188,
+        216,
+        248
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: caller is not the admin"
+    },
+    {
+      "code": 6001,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow in curve calculation"
+    },
+    {
+      "code": 6002,
+      "name": "CurveNotActive",
+      "msg": "Curve is not active for purchases"
+    },
+    {
+      "code": 6003,
+      "name": "CurveNotActiveForSell",
+      "msg": "Curve is not active for sells"
+    },
+    {
+      "code": 6004,
+      "name": "DeadlinePassed",
+      "msg": "Curve deadline has passed"
+    },
+    {
+      "code": 6005,
+      "name": "BelowMinimum",
+      "msg": "Purchase amount is below minimum (0.05 SOL)"
+    },
+    {
+      "code": 6006,
+      "name": "WalletCapExceeded",
+      "msg": "Purchase would exceed per-wallet cap of 20M tokens"
+    },
+    {
+      "code": 6007,
+      "name": "SlippageExceeded",
+      "msg": "Slippage exceeded -- output below minimum specified"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidStatus",
+      "msg": "Invalid curve status for this operation"
+    },
+    {
+      "code": 6009,
+      "name": "CurveNotFunded",
+      "msg": "Curve token vault has not been funded"
+    },
+    {
+      "code": 6010,
+      "name": "ZeroAmount",
+      "msg": "Token amount must be greater than zero"
+    },
+    {
+      "code": 6011,
+      "name": "InsufficientTokenBalance",
+      "msg": "Insufficient token balance for sell"
+    },
+    {
+      "code": 6012,
+      "name": "EscrowNotConsolidated",
+      "msg": "Tax escrow must be consolidated before refund"
+    },
+    {
+      "code": 6013,
+      "name": "NotRefundEligible",
+      "msg": "Curve is not eligible for refunds"
+    },
+    {
+      "code": 6014,
+      "name": "CurveAlreadyFilled",
+      "msg": "Curve has already reached its target"
+    },
+    {
+      "code": 6015,
+      "name": "InsufficientTokensOut",
+      "msg": "Purchase too small -- calculated tokens out is zero"
+    },
+    {
+      "code": 6016,
+      "name": "VaultInsolvency",
+      "msg": "Vault solvency invariant violated -- SOL vault balance below expected"
+    },
+    {
+      "code": 6017,
+      "name": "DeadlineNotPassed",
+      "msg": "Deadline and grace period have not passed yet"
+    },
+    {
+      "code": 6018,
+      "name": "CurveNotGraduated",
+      "msg": "Curve has not graduated"
+    },
+    {
+      "code": 6019,
+      "name": "NothingToBurn",
+      "msg": "No tokens to burn -- user balance is zero"
+    },
+    {
+      "code": 6020,
+      "name": "EscrowAlreadyConsolidated",
+      "msg": "Tax escrow has already been consolidated"
+    },
+    {
+      "code": 6021,
+      "name": "EscrowAlreadyDistributed",
+      "msg": "Tax escrow has already been distributed"
+    },
+    {
+      "code": 6022,
+      "name": "CRIMECurveNotFilled",
+      "msg": "CRIME curve is not filled"
+    },
+    {
+      "code": 6023,
+      "name": "FRAUDCurveNotFilled",
+      "msg": "FRAUD curve is not filled"
+    },
+    {
+      "code": 6024,
+      "name": "NoTokensOutstanding",
+      "msg": "No tokens outstanding -- cannot calculate refund"
+    },
+    {
+      "code": 6025,
+      "name": "PartialFillOvercharge",
+      "msg": "Partial fill overcharge -- actual SOL exceeds input amount"
+    },
+    {
+      "code": 6026,
+      "name": "InvalidPartnerCurve",
+      "msg": "Invalid partner curve -- token mint mismatch"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidHookAccounts",
+      "msg": "Invalid hook accounts -- expected exactly 4 remaining accounts"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidAuthority",
+      "msg": "Invalid authority: cannot transfer to Pubkey::default()"
+    }
+  ],
+  "types": [
+    {
+      "name": "BcAdminConfig",
+      "docs": [
+        "Global admin configuration for the Bonding Curve program.",
+        "",
+        "This PDA is initialized once by the program's upgrade authority,",
+        "storing the admin pubkey that gates all admin-only instructions",
+        "(initialize_curve, fund_curve, start_curve, prepare_transition,",
+        "withdraw_graduated_sol, close_token_vault).",
+        "",
+        "The admin can be a multisig address — not required to be the upgrade authority.",
+        "Once burned (authority set to Pubkey::default()), admin operations are",
+        "permanently disabled.",
+        "",
+        "Seeds: [b\"bc_admin\"]"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "The admin pubkey authorized to perform admin operations.",
+              "Set to Pubkey::default() after burn to permanently revoke."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed for re-derivation in downstream instructions."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveFailed",
+      "docs": [
+        "Emitted when the curve fails (deadline passed without filling)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "tokens_sold",
+            "type": "u64"
+          },
+          {
+            "name": "sol_raised",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_slot",
+            "type": "u64"
+          },
+          {
+            "name": "current_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveFilled",
+      "docs": [
+        "Emitted when the curve reaches its target (460M sold / 1000 SOL raised)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "total_sold",
+            "type": "u64"
+          },
+          {
+            "name": "total_raised",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveFunded",
+      "docs": [
+        "Emitted when the curve's token vault is funded with 460M tokens."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveInitialized",
+      "docs": [
+        "Emitted when a new bonding curve is initialized for a token."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "token_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveStarted",
+      "docs": [
+        "Emitted when the curve is activated for purchases."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "start_slot",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_slot",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveState",
+      "docs": [
+        "Per-token bonding curve state account.",
+        "",
+        "One CurveState exists for CRIME, one for FRAUD.",
+        "Seeds: [\"curve\", token_mint].",
+        "",
+        "Size: 8 (discriminator) + 224 (data) = 232 bytes.",
+        "",
+        "Field sizes:",
+        "token:            1 byte  (enum Tag)",
+        "token_mint:      32 bytes (Pubkey)",
+        "token_vault:     32 bytes (Pubkey)",
+        "sol_vault:       32 bytes (Pubkey)",
+        "tokens_sold:      8 bytes (u64)",
+        "sol_raised:       8 bytes (u64)",
+        "status:           1 byte  (enum Tag)",
+        "start_slot:       8 bytes (u64)",
+        "deadline_slot:    8 bytes (u64)",
+        "participant_count: 4 bytes (u32)",
+        "tokens_returned:  8 bytes (u64)",
+        "sol_returned:     8 bytes (u64)",
+        "tax_collected:    8 bytes (u64)",
+        "tax_escrow:      32 bytes (Pubkey)",
+        "bump:             1 byte  (u8)",
+        "escrow_consolidated: 1 byte (bool)",
+        "partner_mint:    32 bytes (Pubkey)",
+        "-------------------------",
+        "Total data:     224 bytes"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "docs": [
+              "Token this curve is selling (CRIME or FRAUD)."
+            ],
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "token_mint",
+            "docs": [
+              "Mint address of the token being sold."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "token_vault",
+            "docs": [
+              "PDA holding tokens for sale."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "sol_vault",
+            "docs": [
+              "PDA holding raised SOL."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "tokens_sold",
+            "docs": [
+              "Total tokens currently sold (decreases on sells)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "sol_raised",
+            "docs": [
+              "Total SOL raised from buys (gross, does not decrease on sells)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Curve status."
+            ],
+            "type": {
+              "defined": {
+                "name": "CurveStatus"
+              }
+            }
+          },
+          {
+            "name": "start_slot",
+            "docs": [
+              "Slot when curve started (0 if not started)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "deadline_slot",
+            "docs": [
+              "Deadline slot (start_slot + DEADLINE_SLOTS)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "participant_count",
+            "docs": [
+              "Number of unique purchasers (incremented on first buy when user ATA balance was 0)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "tokens_returned",
+            "docs": [
+              "Cumulative tokens returned to curve via sells."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "sol_returned",
+            "docs": [
+              "Cumulative SOL returned to sellers (gross, before tax deduction)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "tax_collected",
+            "docs": [
+              "Cumulative sell tax collected (15% of gross sell proceeds)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "tax_escrow",
+            "docs": [
+              "PDA address of this curve's tax escrow account."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump for this CurveState."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "escrow_consolidated",
+            "docs": [
+              "Whether tax escrow has been consolidated into sol_vault for refunds."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "partner_mint",
+            "docs": [
+              "Mint address of the partner curve's token (CRIME curve stores FRAUD mint, vice versa).",
+              "Used to validate partner_curve_state identity in claim_refund / consolidate_for_refund."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CurveStatus",
+      "docs": [
+        "Lifecycle status of a bonding curve.",
+        "",
+        "State machine transitions:",
+        "Initialized -> Active      (start_curve: curve funded, authority calls)",
+        "Active      -> Filled      (purchase: tokens_sold >= TARGET_TOKENS)",
+        "Active      -> Failed      (mark_failed: clock.slot > deadline_slot)",
+        "Filled      -> Graduated   (finalize_transition: partner also Filled/Graduated)",
+        "",
+        "Terminal states: Graduated, Failed."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Initialized"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Filled"
+          },
+          {
+            "name": "Failed"
+          },
+          {
+            "name": "Graduated"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowConsolidated",
+      "docs": [
+        "Emitted when tax escrow is consolidated back into the SOL vault (for refunds)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "escrow_amount",
+            "docs": [
+              "Lamports moved from escrow to vault."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "new_vault_balance",
+            "docs": [
+              "SOL vault balance after consolidation."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowDistributed",
+      "docs": [
+        "Emitted when tax escrow is distributed to the carnage fund (on graduation)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Lamports sent to carnage fund."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "destination",
+            "docs": [
+              "Carnage fund address."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RefundClaimed",
+      "docs": [
+        "Emitted when a user claims a refund after curve failure."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "tokens_burned",
+            "docs": [
+              "Tokens permanently destroyed (burned)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "refund_amount",
+            "docs": [
+              "SOL returned to user."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "remaining_tokens_sold",
+            "docs": [
+              "curve.tokens_sold after this claim."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "remaining_vault_balance",
+            "docs": [
+              "sol_vault balance after this claim."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SolWithdrawn",
+      "docs": [
+        "Emitted when SOL is withdrawn from a graduated curve's SOL vault."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token_mint",
+            "docs": [
+              "Token mint of the graduated curve."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Lamports withdrawn."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaxCollected",
+      "docs": [
+        "Emitted when sell tax is collected into the escrow."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Tax amount from this sell transaction."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "escrow_balance",
+            "docs": [
+              "Total escrow balance after collection."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Token",
+      "docs": [
+        "Which token this curve is selling."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Crime"
+          },
+          {
+            "name": "Fraud"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenVaultClosed",
+      "docs": [
+        "Emitted when a graduated curve's empty token vault is closed."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token_mint",
+            "docs": [
+              "Token mint of the graduated curve."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "rent_recovered",
+            "docs": [
+              "Rent lamports recovered from closing the vault."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokensPurchased",
+      "docs": [
+        "Emitted when a user purchases tokens from the curve."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "sol_spent",
+            "type": "u64"
+          },
+          {
+            "name": "tokens_received",
+            "type": "u64"
+          },
+          {
+            "name": "new_tokens_sold",
+            "type": "u64"
+          },
+          {
+            "name": "current_price",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokensSold",
+      "docs": [
+        "Emitted when a user sells tokens back to the curve."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "token",
+            "type": {
+              "defined": {
+                "name": "Token"
+              }
+            }
+          },
+          {
+            "name": "tokens_sold",
+            "docs": [
+              "Number of tokens sold back to the curve."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "sol_received_net",
+            "docs": [
+              "SOL sent to user (after 15% tax deduction)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "tax_amount",
+            "docs": [
+              "15% tax amount routed to escrow."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "new_tokens_sold",
+            "docs": [
+              "Updated curve.tokens_sold after this sell."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "current_price",
+            "docs": [
+              "Price after sell (curve walks backward)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransitionComplete",
+      "docs": [
+        "Emitted when finalize_transition completes (terminal state)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "crime_sol_raised",
+            "type": "u64"
+          },
+          {
+            "name": "fraud_sol_raised",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransitionPrepared",
+      "docs": [
+        "Emitted when prepare_transition is called (both curves filled)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "crime_sol_raised",
+            "type": "u64"
+          },
+          {
+            "name": "fraud_sol_raised",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

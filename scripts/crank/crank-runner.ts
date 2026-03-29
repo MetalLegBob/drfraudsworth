@@ -35,7 +35,8 @@
  */
 
 import { createServer, Server } from "http";
-import { PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction, Connection } from "@solana/web3.js";
+import * as fs from "fs";
+import { Keypair, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction, Connection } from "@solana/web3.js";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import * as sb from "@switchboard-xyz/on-demand";
 import { NATIVE_MINT } from "@solana/spl-token";
@@ -233,6 +234,77 @@ function loadCarnageWsolPubkey(): PublicKey {
   return new PublicKey(envPubkey);
 }
 
+// ---- Persistent Randomness Keypair ----
+
+/**
+ * Load or generate the persistent randomness keypair.
+ *
+ * Switchboard's Randomness.create() generates a per-account ALT whose rent
+ * (~0.0035 SOL) can never be reclaimed (authority is a Switchboard PDA).
+ * By reusing a single randomness account across epochs, we create one ALT
+ * total instead of one per epoch (~0.168 SOL/day savings at 48 epochs/day).
+ *
+ * Priority:
+ *   1. RNG_KEYPAIR env var (JSON byte array) — for Railway (no filesystem)
+ *   2. randomness-keypair.json file — for local dev
+ *   3. Generate new keypair and save to file
+ */
+const RNG_KEYPAIR_FILE = "randomness-keypair.json";
+
+function loadOrCreatePersistentRng(): Keypair {
+  // Railway: keypair in env var (no persistent filesystem)
+  const envKp = process.env.RNG_KEYPAIR;
+  if (envKp) {
+    try {
+      const kp = Keypair.fromSecretKey(new Uint8Array(JSON.parse(envKp)));
+      console.log(`  Persistent RNG (env): ${kp.publicKey.toBase58().slice(0, 12)}...`);
+      return kp;
+    } catch (err) {
+      console.log(`  WARNING: RNG_KEYPAIR env var invalid, generating fresh: ${String(err).slice(0, 100)}`);
+    }
+  }
+
+  // Local: load from file
+  if (fs.existsSync(RNG_KEYPAIR_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(RNG_KEYPAIR_FILE, "utf8"));
+      const kp = Keypair.fromSecretKey(new Uint8Array(data));
+      console.log(`  Persistent RNG (file): ${kp.publicKey.toBase58().slice(0, 12)}...`);
+      return kp;
+    } catch (err) {
+      console.log(`  WARNING: ${RNG_KEYPAIR_FILE} invalid, generating fresh: ${String(err).slice(0, 100)}`);
+    }
+  }
+
+  // First run: generate and save
+  const kp = Keypair.generate();
+  try {
+    fs.writeFileSync(RNG_KEYPAIR_FILE, JSON.stringify(Array.from(kp.secretKey)));
+    console.log(`  Persistent RNG (new, saved to ${RNG_KEYPAIR_FILE}): ${kp.publicKey.toBase58().slice(0, 12)}...`);
+  } catch {
+    // Railway: no filesystem write — keypair lives only in memory this session.
+    // On restart a new keypair is generated. Set RNG_KEYPAIR env var to persist.
+    console.log(`  Persistent RNG (new, in-memory only): ${kp.publicKey.toBase58().slice(0, 12)}...`);
+  }
+  return kp;
+}
+
+/**
+ * Save a new persistent randomness keypair (after oracle recovery creates a fresh one).
+ * Updates the file if writable; logs the env var value for Railway config.
+ */
+function savePersistentRng(kp: Keypair): void {
+  const secretArr = Array.from(kp.secretKey);
+  try {
+    fs.writeFileSync(RNG_KEYPAIR_FILE, JSON.stringify(secretArr));
+    console.log(`  [rng] Saved new persistent keypair to ${RNG_KEYPAIR_FILE}: ${kp.publicKey.toBase58().slice(0, 12)}...`);
+  } catch {
+    // Can't write (Railway) — log the value so operator can update env var
+    console.log(`  [rng] New persistent keypair (update RNG_KEYPAIR env var): ${kp.publicKey.toBase58().slice(0, 12)}...`);
+    console.log(`  [rng] RNG_KEYPAIR=${JSON.stringify(secretArr)}`);
+  }
+}
+
 // ---- RPC URL Masking ----
 
 /**
@@ -317,6 +389,7 @@ function getLowBalanceThreshold(): number {
  */
 async function sweepStaleRandomnessAccounts(
   provider: AnchorProvider,
+  excludePubkey?: PublicKey,
 ): Promise<void> {
   const crankWallet = provider.wallet.publicKey;
   const connection = provider.connection;
@@ -347,6 +420,11 @@ async function sweepStaleRandomnessAccounts(
     let reclaimedLamports = 0;
 
     for (const { pubkey, account } of accounts) {
+      // Skip the persistent randomness account — it's intentionally kept open for reuse
+      if (excludePubkey && pubkey.toBase58() === excludePubkey.toBase58()) {
+        console.log(`  [sweep] Skipping persistent account ${pubkey.toBase58().slice(0, 12)}...`);
+        continue;
+      }
       const balanceBefore = account.lamports;
       const sig = await closeRandomnessAccount(provider, pubkey);
       if (sig) {
@@ -391,6 +469,10 @@ async function main(): Promise<void> {
   const carnageWsolPubkey = loadCarnageWsolPubkey();
   console.log(`  Carnage WSOL: ${carnageWsolPubkey.toBase58().slice(0, 12)}...`);
 
+  // Load persistent randomness keypair (saves ~0.168 SOL/day in ALT rent)
+  console.log("[crank] Loading persistent randomness keypair...");
+  let persistentRngKp = loadOrCreatePersistentRng();
+
   // Load ALT (reads committed alt-address.json; passes carnage WSOL pubkey to avoid file read on Railway)
   console.log("[crank] Loading Address Lookup Table...");
   const alt = await getOrCreateProtocolALT(provider, manifest, carnageWsolPubkey);
@@ -430,6 +512,8 @@ async function main(): Promise<void> {
     },
 
     alt,
+
+    persistentRngKp,
   };
 
   // ---- Compute Configurable Settings ----
@@ -455,7 +539,7 @@ async function main(): Promise<void> {
   console.log();
 
   // ---- Sweep Stale Randomness Accounts ----
-  await sweepStaleRandomnessAccounts(provider);
+  await sweepStaleRandomnessAccounts(provider, persistentRngKp.publicKey);
   console.log();
 
   // ---- Main Loop ----
@@ -476,7 +560,7 @@ async function main(): Promise<void> {
       // Periodic sweep: catch randomness accounts leaked by failed inline closes
       if (cycleCount > 1 && cycleCount % PERIODIC_SWEEP_INTERVAL === 0) {
         console.log(`[crank] Periodic sweep (every ${PERIODIC_SWEEP_INTERVAL} cycles)...`);
-        await sweepStaleRandomnessAccounts(provider);
+        await sweepStaleRandomnessAccounts(provider, persistentRngKp.publicKey);
       }
 
       // 1. Read current state to determine wait time
@@ -599,13 +683,33 @@ async function main(): Promise<void> {
         break; // Spending cap reached — halt
       }
 
-      // 6. Close consumed randomness account to reclaim ~0.008 SOL rent
-      if (result.randomnessPubkey) {
-        const closeSig = await closeRandomnessAccount(provider, result.randomnessPubkey);
-        if (closeSig) {
-          console.log(
-            `  [close] Reclaimed rent from ${result.randomnessPubkey.toBase58().slice(0, 12)}... TX: ${closeSig.slice(0, 16)}...`
-          );
+      // 6. Handle randomness account lifecycle (persistent reuse)
+      if (result.newRandomnessKp) {
+        // Oracle recovery created a fresh account — adopt it as the new persistent one.
+        // Close the OLD persistent account (stuck on dead oracle).
+        const oldPubkey = persistentRngKp.publicKey;
+        console.log(`  [rng] Oracle recovery: switching persistent keypair ${oldPubkey.toBase58().slice(0, 12)}... -> ${result.newRandomnessKp.publicKey.toBase58().slice(0, 12)}...`);
+
+        const oldCloseSig = await closeRandomnessAccount(provider, oldPubkey);
+        if (oldCloseSig) {
+          console.log(`  [rng] Closed old persistent account. TX: ${oldCloseSig.slice(0, 16)}...`);
+        }
+
+        // Update persistent keypair for future cycles
+        persistentRngKp = result.newRandomnessKp;
+        vrfAccounts.persistentRngKp = persistentRngKp;
+        savePersistentRng(persistentRngKp);
+      } else if (result.randomnessPubkey) {
+        // Normal cycle — DON'T close if it's the persistent account (we want to reuse it)
+        const isPersistent = result.randomnessPubkey.toBase58() === persistentRngKp.publicKey.toBase58();
+        if (!isPersistent) {
+          // This was a non-persistent account (e.g. from a code path without persistence)
+          const closeSig = await closeRandomnessAccount(provider, result.randomnessPubkey);
+          if (closeSig) {
+            console.log(
+              `  [close] Reclaimed rent from ${result.randomnessPubkey.toBase58().slice(0, 12)}... TX: ${closeSig.slice(0, 16)}...`
+            );
+          }
         }
       }
 

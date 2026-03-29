@@ -171,7 +171,7 @@ Across four independent audit passes and formal verification, a total of **411 f
 | H001 | CRITICAL | Private key in .mcp.json git history | **Fixed** -- Key rotated; fresh repo with zero git history |
 | H004 | HIGH | Helius API key enables webhook hijack | **Fixed** -- API key rotated; removed from version control |
 | H005 | HIGH | Webhook secret compromise enables state injection | **Mitigated** -- Semantic validation added to webhook handler; slot-based freshness checks implemented (H011 fix) |
-| H008 | HIGH | RPC proxy batch amplification | **Mitigated** -- Per-method rate limits added (Phase 108); see detailed explanation below |
+| H008 | HIGH | RPC proxy batch amplification | **Open** -- Non-exploitable: see detailed explanation below |
 | H010 | HIGH | RPC proxy no fetch timeout | **Fixed** -- AbortSignal.timeout added |
 | H011 | HIGH | Enhanced webhook replay (stale state injection) | **Fixed** -- Slot-monotonic freshness check implemented |
 | H012 | HIGH | 17 devnet keypairs in git | **Fixed** -- Fresh repo with zero git history; no keypairs included |
@@ -194,11 +194,11 @@ Across four independent audit passes and formal verification, a total of **411 f
 | H015 | IP spoofing bypasses per-IP rate limits | **Acknowledged** -- Railway proxy adds real IP; spoofing blocked at infrastructure level |
 | H019 | gapFillCandles memory amplification | **Open** -- Non-critical; operational concern |
 | H027 | SSE connection cap loosened | **Acknowledged** -- 10/IP + 5000 global; adequate for current scale |
-| H028 | 5 of 8 routes unprotected by rate limits | **Fixed** -- Per-method rate limits for sendTransaction (10/min) and simulateTransaction (20/min) added in Phase 108; /api/health rate limited to 30/min |
+| H028 | 5 of 8 routes unprotected by rate limits | **Open** -- Non-critical routes; future improvement |
 | H044 | WS subscriber poll overlap | **Acknowledged** -- No financial impact |
 | H050 | No process-level error handlers | **Open** -- Railway auto-restarts; future improvement |
 | H054 | Crank Carnage recovery skips atomic bundling | **Acknowledged** -- Rare recovery path |
-| H056 | No external alerting on circuit breaker | **Fixed** -- Telegram alerting implemented in Phase 105 for circuit breaker trips |
+| H056 | No external alerting on circuit breaker | **Open** -- Operational improvement planned |
 | H057 | migrate.ts missing TLS | **Open** -- Dev-only script |
 | H120 | No secret rotation mechanism | **Open** -- Operational improvement planned |
 
@@ -381,13 +381,12 @@ The following findings are marked "Acknowledged" because they represent known de
 **Why it exists:** The RPC proxy accepts JSON-RPC batch arrays without a per-batch size limit.
 
 **Why it is NOT exploitable in practice:**
-1. Per-method rate limits added in Phase 108: `sendTransaction` (10/min), `simulateTransaction` (20/min), shared 300/min for other methods
-2. Railway's reverse proxy infrastructure adds per-connection rate limiting upstream of the application
-3. The Helius RPC plan has credit alerts and auto-throttling
-4. Cloudflare rate limiting rule at 600/min per IP acts as a DoS safety net
-5. An attacker burning RPC credits causes service degradation, not fund loss
+1. Railway's reverse proxy infrastructure adds per-connection rate limiting upstream of the application
+2. The Helius RPC plan has credit alerts and auto-throttling
+3. Batch limiting is a defense-in-depth improvement, not a critical gap
+4. An attacker burning RPC credits causes service degradation, not fund loss
 
-**Mitigating controls:** Per-method rate limits, Cloudflare rate limiting, Railway infrastructure, Helius credit monitoring
+**Mitigating controls:** Railway infrastructure rate limiting, Helius credit monitoring
 
 ### H018 (Bulwark): No MEV-Protected Submission for Swaps
 
@@ -449,10 +448,6 @@ The protocol underwent continuous security hardening across its development life
 | Phase 100 | Mar 2026 | Mainnet deployment -- all 6 programs deployed, 11 authorities transferred to Squads |
 | Phase 101 | Mar 2026 | Verified builds, security.txt, IDL upload |
 | Mar 25, 2026 | Mar 2026 | H011 fix: Slot-monotonic freshness check for enhanced webhook replay protection |
-| Phase 105 | Mar 2026 | Crank hardening: randomness account lifecycle, VRF retry tuning, Telegram alerting |
-| Phase 106 | Mar 2026 | Vault convert_v2 instruction (convert-all mode) -- SOS diff-audit cleared with 0 findings across 8 security checks |
-| Phase 106.1 | Mar 2026 | Cluster-aware skipPreflight for devnet compatibility (no security impact) |
-| Phase 108 | Mar 2026 | zAuth vulnerability report remediation: health endpoint hardening, CSP frame-ancestors tightened, RPC per-method rate limits (sendTransaction 10/min, simulateTransaction 20/min), Postgres connection timeouts |
 
 ### Key Milestones
 
@@ -464,14 +459,9 @@ The protocol underwent continuous security hardening across its development life
 
 ## Future Security Plans
 
-### Completed (v1.5)
+### Immediate (This Phase)
+- **OtterSec verified build badges** for all 6 deployed mainnet programs (binary integrity verification via OtterSec's verification registry)
 - **Open-source release** of complete codebase for public scrutiny
-- **zAuth vulnerability remediation** -- health endpoint hardening, CSP frame-ancestors, per-method rate limits, Postgres timeouts
-- **Crank hardening** -- randomness account lifecycle, VRF retry tuning, Telegram alerting for circuit breakers
-- **Vault convert_v2** -- convert-all instruction for zero intermediate token leakage in multi-hop swaps
-
-### Immediate (Next)
-- **OtterSec re-verification** for all 6 deployed mainnet programs including convert_v2 (binary integrity verification via OtterSec's verification registry)
 
 ### Near-Term
 - **Paid external audit** from a professional Solana security firm (planned future milestone)

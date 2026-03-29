@@ -1,0 +1,23 @@
+[package]
+name = "drfraudsworth-jupiter-adapter"
+version = "0.1.0"
+edition = "2021"
+description = "Jupiter AMM adapter SDK for Dr. Fraudsworth DEX protocol"
+license = "MIT"
+repository = "https://github.com/MetalLegBob/drfraudsworth"
+keywords = ["jupiter", "solana", "dex", "amm"]
+
+[dependencies]
+jupiter-amm-interface = "=0.6.0"
+solana-sdk = "~2.3"
+rust_decimal = "1.36.0"
+ahash = "0.8"
+anyhow = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+# Parity tests (Plan 03): cross-crate imports to prove SDK math == on-chain math
+amm = { path = "../../programs/amm", features = ["no-entrypoint"] }
+tax-program = { path = "../../programs/tax-program", features = ["no-entrypoint", "localnet"] }
+conversion-vault = { path = "../../programs/conversion-vault", features = ["no-entrypoint", "localnet"] }
+anchor-lang = "0.32.1"

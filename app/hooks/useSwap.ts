@@ -730,12 +730,16 @@ export function useSwap(): UseSwapReturn {
         switch (poolConfig.instruction) {
           case "swapSolBuy": {
             const amountInLamports = toBaseUnits(inputAmount, inputToken);
+            const buyTaxBps = isCrime
+              ? epochState!.crimeBuyTaxBps
+              : epochState!.fraudBuyTaxBps;
             tx = await buildSolBuyTransaction({
               connection,
               userPublicKey: wallet.publicKey,
               amountInLamports,
               minimumOutput: quote.minimumOutput,
               isCrime,
+              taxBps: buyTaxBps,
               priorityFeeMicroLamports: priorityMicroLamports,
             });
             break;
@@ -826,6 +830,7 @@ export function useSwap(): UseSwapReturn {
     priorityFeePreset,
     toBaseUnits,
     refreshBalances,
+    epochState,
   ]);
 
   // ==========================================================================

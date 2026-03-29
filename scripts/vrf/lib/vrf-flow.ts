@@ -82,6 +82,13 @@ export interface EpochTransitionResult {
   /** Pubkey of the randomness account used this cycle (null if consumed by another crank) */
   randomnessPubkey: PublicKey | null;
 
+  /**
+   * When set, the recovery path created a fresh randomness account (to re-roll
+   * oracle assignment). The crank should adopt this as its new persistent keypair,
+   * close the old persistent account, and persist this keypair for future cycles.
+   */
+  newRandomnessKp?: Keypair;
+
   /** VRF instrumentation (CRANK-03) */
   /** Wall-clock time for successful revealIx() call in ms */
   gatewayMs?: number;
@@ -142,6 +149,15 @@ export interface VRFAccounts {
    * Required for Sell path Carnage (23 named + 8 remaining accounts > 1232 bytes).
    */
   alt?: AddressLookupTableAccount;
+
+  /**
+   * Optional: Persistent randomness keypair for account reuse.
+   * When provided, advanceEpochWithVRF skips Randomness.create() if the account
+   * already exists on-chain, and re-commits the same account (fresh seed each cycle).
+   * Saves ~0.0035 SOL/epoch in permanently leaked ALT rent.
+   * When not provided, falls back to fresh Keypair.generate() each cycle.
+   */
+  persistentRngKp?: Keypair;
 }
 
 // ─── Utilities ─────────────────────────────────────────────────────────────
@@ -237,6 +253,87 @@ function cheapSideToStr(val: any): string {
   if (val && val.crime !== undefined) return "CRIME";
   if (val && val.fraud !== undefined) return "FRAUD";
   return String(val) === "0" ? "CRIME" : "FRAUD";
+}
+
+// ─── Commit with Oracle Retry ───────────────────────────────────────────────
+
+/**
+ * Maximum commit retry attempts when Switchboard returns 6040 (OracleKeyExpired).
+ *
+ * Switchboard rotates oracle TEE keys on a 7-day cycle and rejects commits
+ * from oracles within 1 hour of expiry. The SDK's commitIx() randomly selects
+ * an oracle from the queue — no validity filtering. When most oracles have
+ * expiring keys, the majority of selections hit expired oracles.
+ *
+ * With 3/12 valid oracles (25% hit rate), 10 retries gives ~94% success
+ * probability. Each retry re-rolls the random oracle selection. The failed
+ * TX is a no-op on-chain, so the randomness account state is unchanged
+ * between retries.
+ */
+const COMMIT_ORACLE_MAX_RETRIES = 10;
+
+/**
+ * Detect Switchboard error 6040 (RandomnessOracleKeyExpired) in a TX error.
+ * On-chain error code 6040 = 0x1798 in hex.
+ */
+function isOracleKeyExpiredError(err: unknown): boolean {
+  const s = String(err);
+  return s.includes("0x1798") || s.includes("6040");
+}
+
+/**
+ * Build and send a commit TX with automatic oracle retry on 6040.
+ *
+ * When commitIx() randomly picks an oracle whose TEE key is expired or
+ * expiring within the 1-hour buffer, the on-chain program rejects with
+ * 6040 (RandomnessOracleKeyExpired). This wrapper retries by re-calling
+ * commitIx() — which re-rolls the random oracle selection — and rebuilding
+ * the TX.
+ *
+ * @param randomness  Switchboard Randomness instance (already created + finalized)
+ * @param queuePubkey Switchboard queue public key
+ * @param buildTx     Callback that takes a commitIx and returns the full Transaction to send
+ * @param provider    Anchor provider for sendAndConfirm
+ * @param signers     Additional signers for the TX (typically [wallet.payer])
+ * @param label       Log label for context (e.g. "tx2" or "recovery")
+ * @returns           Object with TX signature and number of attempts taken
+ */
+async function commitWithOracleRetry(
+  randomness: any,
+  queuePubkey: PublicKey,
+  buildTx: (commitIx: TransactionInstruction) => Transaction,
+  provider: AnchorProvider,
+  signers: any[],
+  label: string = "tx2",
+): Promise<{ sig: string; attempts: number }> {
+  for (let attempt = 1; attempt <= COMMIT_ORACLE_MAX_RETRIES; attempt++) {
+    const ix = await randomness.commitIx(queuePubkey);
+    await sleep(200);
+
+    const tx = buildTx(ix);
+
+    try {
+      const sig = await provider.sendAndConfirm(tx, signers);
+      if (attempt > 1) {
+        console.log(`  [${label}] Commit succeeded on attempt ${attempt}/${COMMIT_ORACLE_MAX_RETRIES}`);
+      }
+      return { sig, attempts: attempt };
+    } catch (err) {
+      if (isOracleKeyExpiredError(err) && attempt < COMMIT_ORACLE_MAX_RETRIES) {
+        console.log(
+          `  [${label}] Oracle key expired (6040), retrying with different oracle ` +
+          `(${attempt}/${COMMIT_ORACLE_MAX_RETRIES})...`
+        );
+        await sleep(500); // Brief pause before re-rolling oracle
+        continue;
+      }
+      // Not a 6040 error, or max retries exhausted — propagate
+      throw err;
+    }
+  }
+
+  // Unreachable — loop either returns or throws
+  throw new Error(`commitWithOracleRetry: exhausted ${COMMIT_ORACLE_MAX_RETRIES} retries`);
 }
 
 // ─── Reveal + Consume Helpers ───────────────────────────────────────────────
@@ -528,6 +625,8 @@ export async function advanceEpochWithVRF(
       }
     }
 
+    let retryRngKp: Keypair | undefined; // Hoisted for return scope
+
     if (!staleRevealSucceeded) {
       // Oracle didn't respond — wait for VRF timeout and use retry_epoch_vrf
       const vrfRequestSlot = Number(stateBefore.vrfRequestSlot);
@@ -544,7 +643,7 @@ export async function advanceEpochWithVRF(
 
       // Create fresh randomness for the retry
       console.log("  [recovery] Creating fresh randomness for retry...");
-      const retryRngKp = Keypair.generate();
+      retryRngKp = Keypair.generate();
       const [retryRandomness, retryCreateIx] = await sb.Randomness.create(
         sbProgram as any, retryRngKp, queueAccount.pubkey
       );
@@ -563,9 +662,8 @@ export async function advanceEpochWithVRF(
       await connection.confirmTransaction(retryCreateSig, "finalized");
       await sleep(200);
 
-      // Commit + retry_epoch_vrf to replace the stale VRF request
+      // Commit + retry_epoch_vrf to replace the stale VRF request (with oracle retry on 6040)
       console.log("  [recovery] Building retry commit + retry_epoch_vrf...");
-      const retryCommitIx = await retryRandomness.commitIx(queueAccount.pubkey);
       const retryVrfIx = await epochProgram.methods
         .retryEpochVrf()
         .accounts({
@@ -575,13 +673,19 @@ export async function advanceEpochWithVRF(
         })
         .instruction();
 
-      const retryCommitTx = new Transaction().add(
-        ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
-        retryCommitIx,
-        retryVrfIx
+      const { sig: retryCommitSig } = await commitWithOracleRetry(
+        retryRandomness,
+        queueAccount.pubkey,
+        (commitIx) => new Transaction().add(
+          ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+          commitIx,
+          retryVrfIx,
+        ),
+        provider,
+        [wallet.payer],
+        "recovery",
       );
-      await provider.sendAndConfirm(retryCommitTx, [wallet.payer]);
-      console.log("  [recovery] Retry commit sent");
+      console.log(`  [recovery] Retry commit sent: ${retryCommitSig.slice(0, 16)}...`);
 
       // Wait for oracle on the fresh randomness
       await waitForSlotAdvance(connection, 3);
@@ -737,6 +841,10 @@ export async function advanceEpochWithVRF(
         stateAfter.lastCarnageEpoch === stateAfter.currentEpoch,
       carnageExecutedAtomically: false, // Recovery path does not attempt atomic Carnage
       randomnessPubkey: recoveryRandomnessPubkey,
+      // Signal crank to adopt the fresh keypair as the new persistent one
+      newRandomnessKp: recoveryRandomnessPubkey.toBase58() !== stalePubkey.toBase58()
+        ? retryRngKp
+        : undefined,
       // VRF instrumentation (CRANK-03)
       gatewayMs: recoveryGatewayMs,
       revealAttempts: totalRevealAttempts,
@@ -745,46 +853,75 @@ export async function advanceEpochWithVRF(
     };
   }
 
-  // ─── TX 1: Create Randomness Account ──────────────────────────────────
-  // MUST be separate from TX 2 -- SDK reads account client-side after create
-  console.log("  [tx1] Creating randomness account...");
-  const rngKp = Keypair.generate();
+  // ─── TX 1: Create or Reuse Randomness Account ───────────────────────────
+  // When a persistent keypair is provided and the account already exists on-chain,
+  // skip creation entirely — commitIx() will overwrite seed_slot/seed_slothash
+  // with fresh data. This saves ~0.0035 SOL/cycle in permanently leaked ALT rent.
+  let rngKp: Keypair;
+  let randomness: any;
+  let accountReused = false;
+  let createSig = "reused"; // Overwritten if account is created
 
-  const [randomness, createIx] = await sb.Randomness.create(
-    sbProgram as any,
-    rngKp,
-    queueAccount.pubkey
-  );
-  console.log(`  [tx1] Randomness: ${randomness.pubkey.toBase58()}`);
+  if (accounts.persistentRngKp) {
+    rngKp = accounts.persistentRngKp;
+    const existingAcct = await connection.getAccountInfo(rngKp.publicKey);
+    await sleep(200);
 
-  const createTx = new Transaction().add(createIx);
-  createTx.feePayer = wallet.publicKey;
-  createTx.recentBlockhash = (
-    await connection.getLatestBlockhash()
-  ).blockhash;
-  createTx.sign(wallet.payer, rngKp);
+    if (existingAcct) {
+      // Account exists — reuse it (no create TX needed)
+      randomness = new sb.Randomness(sbProgram as any, rngKp.publicKey);
+      accountReused = true;
+      console.log(`  [tx1] Reusing persistent randomness account: ${rngKp.publicKey.toBase58().slice(0, 12)}...`);
+    } else {
+      // First cycle or account was closed — create it
+      console.log("  [tx1] Persistent keypair has no on-chain account. Creating...");
+      const [newRandomness, createIx] = await sb.Randomness.create(
+        sbProgram as any, rngKp, queueAccount.pubkey
+      );
+      randomness = newRandomness;
 
-  // skipPreflight: true because the SDK's LUT creation uses a finalized slot
-  // that can be slightly stale. The actual on-chain execution will succeed
-  // even if preflight simulation rejects it due to slot staleness.
-  const createSig = await connection.sendRawTransaction(createTx.serialize(), {
-    skipPreflight: true,
-    maxRetries: 3,
-  });
-  console.log(`  [tx1] Sent: ${createSig.slice(0, 16)}...`);
+      const createTx = new Transaction().add(createIx);
+      createTx.feePayer = wallet.publicKey;
+      createTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+      createTx.sign(wallet.payer, rngKp);
 
-  // CRITICAL: Must wait for FINALIZATION, not just confirmation.
-  // commitIx() reads the account client-side and will fail if not finalized.
-  console.log("  [tx1] Waiting for finalization...");
-  await connection.confirmTransaction(createSig, "finalized");
-  console.log("  [tx1] Finalized!");
+      createSig = await connection.sendRawTransaction(createTx.serialize(), {
+        skipPreflight: true, maxRetries: 3,
+      });
+      console.log(`  [tx1] Sent: ${createSig.slice(0, 16)}...`);
+      console.log("  [tx1] Waiting for finalization...");
+      await connection.confirmTransaction(createSig, "finalized");
+      console.log("  [tx1] Finalized!");
+    }
+  } else {
+    // No persistent keypair — fresh each cycle (original behavior)
+    console.log("  [tx1] Creating randomness account...");
+    rngKp = Keypair.generate();
+
+    const [newRandomness, createIx] = await sb.Randomness.create(
+      sbProgram as any, rngKp, queueAccount.pubkey
+    );
+    randomness = newRandomness;
+    console.log(`  [tx1] Randomness: ${randomness.pubkey.toBase58()}`);
+
+    const createTx = new Transaction().add(createIx);
+    createTx.feePayer = wallet.publicKey;
+    createTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    createTx.sign(wallet.payer, rngKp);
+
+    createSig = await connection.sendRawTransaction(createTx.serialize(), {
+      skipPreflight: true, maxRetries: 3,
+    });
+    console.log(`  [tx1] Sent: ${createSig.slice(0, 16)}...`);
+    console.log("  [tx1] Waiting for finalization...");
+    await connection.confirmTransaction(createSig, "finalized");
+    console.log("  [tx1] Finalized!");
+  }
 
   await sleep(200); // Rate limit
 
-  // ─── TX 2: Commit + Trigger ───────────────────────────────────────────
+  // ─── TX 2: Commit + Trigger (with oracle retry on 6040) ────────────────
   console.log("  [tx2] Building commit + trigger...");
-  const commitIx = await randomness.commitIx(queueAccount.pubkey);
-  await sleep(200);
 
   // Treasury is the wallet pubkey (bounty transfer placeholder, same as devnet-vrf.ts)
   const triggerIx = await epochProgram.methods
@@ -798,13 +935,18 @@ export async function advanceEpochWithVRF(
     })
     .instruction();
 
-  const commitTx = new Transaction().add(
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
-    commitIx,
-    triggerIx
+  const { sig: commitSig } = await commitWithOracleRetry(
+    randomness,
+    queueAccount.pubkey,
+    (commitIx) => new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+      commitIx,
+      triggerIx,
+    ),
+    provider,
+    [wallet.payer],
+    "tx2",
   );
-
-  const commitSig = await provider.sendAndConfirm(commitTx, [wallet.payer]);
   console.log(`  [tx2] Commit+Trigger: ${commitSig.slice(0, 16)}...`);
 
   await sleep(200); // Rate limit
@@ -901,9 +1043,8 @@ export async function advanceEpochWithVRF(
 
     await sleep(200);
 
-    // Retry commit using retry_epoch_vrf
+    // Retry commit using retry_epoch_vrf (with oracle retry on 6040)
     console.log("  [recovery] Building retry commit + retry_epoch_vrf...");
-    const retryCommitIx = await retryRandomness.commitIx(queueAccount.pubkey);
     const retryIx = await epochProgram.methods
       .retryEpochVrf()
       .accounts({
@@ -913,13 +1054,19 @@ export async function advanceEpochWithVRF(
       })
       .instruction();
 
-    const retryCommitTx = new Transaction().add(
-      ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
-      retryCommitIx,
-      retryIx
+    const { sig: retryCommitSig2 } = await commitWithOracleRetry(
+      retryRandomness,
+      queueAccount.pubkey,
+      (commitIx) => new Transaction().add(
+        ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+        commitIx,
+        retryIx,
+      ),
+      provider,
+      [wallet.payer],
+      "recovery",
     );
-    await provider.sendAndConfirm(retryCommitTx, [wallet.payer]);
-    console.log("  [recovery] Retry commit sent");
+    console.log(`  [recovery] Retry commit sent: ${retryCommitSig2.slice(0, 16)}...`);
 
     // Wait for oracle on retry
     await waitForSlotAdvance(connection, 3);
@@ -1051,6 +1198,8 @@ export async function advanceEpochWithVRF(
     carnageTriggered,
     carnageExecutedAtomically,
     randomnessPubkey: activeRngKp.publicKey,
+    // Signal crank to adopt fresh keypair if oracle timeout recovery created one
+    newRandomnessKp: activeRngKp !== rngKp ? activeRngKp : undefined,
     // VRF instrumentation (CRANK-03)
     gatewayMs: happyPathGatewayMs,
     revealAttempts: happyPathRevealAttempts,
