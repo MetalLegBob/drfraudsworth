@@ -33,7 +33,7 @@ security_txt! {
     expiry: "2027-03-20"
 }
 
-declare_id!("FGgidfhNLwxhGHpyH7SoZdxAkAyQNXjA5o8ndV3LkG4W");
+declare_id!("43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj");
 
 #[program]
 pub mod tax_program {
