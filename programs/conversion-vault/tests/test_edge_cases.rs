@@ -132,3 +132,86 @@ fn vault_02_crime_to_fraud_still_rejected() {
     let result = compute(&test_crime(), &test_fraud(), 1_000_000);
     assert!(result.is_err(), "CRIME -> FRAUD direct conversion should fail");
 }
+
+// ===========================================================================
+// VAULT-03: Delta mode arithmetic edge cases
+//
+// Tests the checked_sub arithmetic that convert_v2's delta mode relies on.
+// These are unit tests on the math — handler-level tests with real accounts
+// are covered by devnet E2E validation (Step 7).
+// ===========================================================================
+
+#[test]
+fn vault_03_delta_dust_below_conversion_threshold() {
+    // User holds 500 CRIME, swap deposits 50 raw units (< 100 threshold)
+    // Delta = 50, which is too small for CRIME->PROFIT (50/100 = 0)
+    let pre_balance: u64 = 500_000_000; // 500 CRIME
+    let current_balance: u64 = 500_000_050; // 500 CRIME + 50 raw dust
+    let delta = current_balance.checked_sub(pre_balance).unwrap();
+    assert_eq!(delta, 50);
+
+    // This delta should fail OutputTooSmall
+    let result = compute(&test_crime(), &test_profit(), delta);
+    assert!(result.is_err(), "Delta of 50 raw should be too small for CRIME->PROFIT");
+    let err_str = format!("{:?}", result.unwrap_err());
+    assert!(
+        err_str.contains("6001"), // OutputTooSmall
+        "Expected OutputTooSmall (6001), got: {}",
+        err_str
+    );
+}
+
+#[test]
+fn vault_03_delta_exact_threshold() {
+    // Delta of exactly 100 raw units — minimum viable conversion
+    let pre_balance: u64 = 500_000_000;
+    let current_balance: u64 = 500_000_100;
+    let delta = current_balance.checked_sub(pre_balance).unwrap();
+    assert_eq!(delta, 100);
+
+    let output = compute(&test_crime(), &test_profit(), delta).unwrap();
+    assert_eq!(output, 1, "100 raw CRIME -> 1 raw PROFIT");
+}
+
+#[test]
+fn vault_03_delta_zero_deposit() {
+    // pre_balance equals current_balance — no tokens deposited
+    // checked_sub succeeds but delta = 0 → ZeroAmount
+    let pre_balance: u64 = 500_000_000;
+    let current_balance: u64 = 500_000_000;
+    let delta = current_balance.checked_sub(pre_balance).unwrap();
+    assert_eq!(delta, 0);
+
+    let result = compute(&test_crime(), &test_profit(), delta);
+    assert!(result.is_err(), "Zero delta should fail");
+    let err_str = format!("{:?}", result.unwrap_err());
+    assert!(
+        err_str.contains("6000"), // ZeroAmount
+        "Expected ZeroAmount (6000), got: {}",
+        err_str
+    );
+}
+
+#[test]
+fn vault_03_delta_underflow_stale_snapshot() {
+    // pre_balance > current_balance (snapshot is stale — tokens were
+    // transferred out between snapshot and execution)
+    let pre_balance: u64 = 500_000_000;
+    let current_balance: u64 = 400_000_000; // 100 CRIME transferred out
+    let result = current_balance.checked_sub(pre_balance);
+    assert!(result.is_none(), "Should underflow when pre_balance > current");
+}
+
+#[test]
+fn vault_03_delta_large_holdings_small_deposit() {
+    // User holds 1B CRIME (entire supply), swap deposits 100 CRIME
+    // Delta should be exactly 100 CRIME regardless of holdings size
+    let pre_balance: u64 = 1_000_000_000_000_000; // 1B CRIME (6 decimals)
+    let deposit: u64 = 100_000_000; // 100 CRIME
+    let current_balance = pre_balance + deposit;
+    let delta = current_balance.checked_sub(pre_balance).unwrap();
+    assert_eq!(delta, deposit);
+
+    let output = compute(&test_crime(), &test_profit(), delta).unwrap();
+    assert_eq!(output, 1_000_000, "100 CRIME -> 1 PROFIT");
+}

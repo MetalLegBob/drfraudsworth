@@ -23,7 +23,7 @@ security_txt! {
     contacts: "email:drfraudsworth@gmail.com,twitter:@fraudsworth",
     policy: "https://fraudsworth.fun/docs/security/security-policy",
     preferred_languages: "en",
-    auditors: "Internal audits: SOS, BOK, VulnHunter (v1.3)",
+    auditors: "Internal audits: SOS #4, BOK, DB #3 (v1.5+)",
     expiry: "2027-03-20"
 }
 
@@ -50,13 +50,18 @@ pub mod conversion_vault {
 
     /// Convert tokens at fixed 100:1 rate with on-chain balance reading and slippage protection.
     ///
-    /// When `amount_in == 0` (convert-all mode), reads the user's on-chain token balance.
-    /// The `minimum_output` parameter enforces slippage protection on the output amount.
+    /// Three modes controlled by `amount_in` and `pre_balance`:
+    /// - `amount_in > 0`: Exact mode — convert exactly `amount_in` tokens.
+    /// - `amount_in == 0, pre_balance == 0`: Convert-all — convert entire balance.
+    /// - `amount_in == 0, pre_balance > 0`: Delta mode — convert only the tokens
+    ///   deposited since `pre_balance` (e.g. by a preceding AMM swap in an atomic
+    ///   multi-hop route). User's pre-existing holdings are untouched.
     pub fn convert_v2<'info>(
         ctx: Context<'_, '_, 'info, 'info, Convert<'info>>,
         amount_in: u64,
         minimum_output: u64,
+        pre_balance: u64,
     ) -> Result<()> {
-        instructions::convert_v2::handler(ctx, amount_in, minimum_output)
+        instructions::convert_v2::handler(ctx, amount_in, minimum_output, pre_balance)
     }
 }

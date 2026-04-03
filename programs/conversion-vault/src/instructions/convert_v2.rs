@@ -12,6 +12,7 @@ pub fn handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, Convert<'info>>,
     amount_in: u64,
     minimum_output: u64,
+    pre_balance: u64,
 ) -> Result<()> {
     // --- 0. Owner check for convert-all safety ---
     require!(
@@ -20,12 +21,30 @@ pub fn handler<'info>(
     );
 
     // --- 1. Resolve effective amount ---
-    let effective_amount = if amount_in == 0 {
-        let balance = ctx.accounts.user_input_account.amount;
-        require!(balance > 0, VaultError::ZeroAmount);
-        balance
-    } else {
+    // Three modes:
+    //   amount_in > 0              → Exact mode: convert exactly amount_in
+    //   amount_in == 0, pre_balance > 0  → Delta mode: convert only what was deposited
+    //                                      since pre_balance (for multi-hop routes)
+    //   amount_in == 0, pre_balance == 0 → Convert-all: convert entire balance
+    let effective_amount = if amount_in > 0 {
         amount_in
+    } else {
+        let balance = ctx.accounts.user_input_account.amount;
+        if pre_balance > 0 {
+            // Delta mode: convert only the tokens deposited since pre_balance.
+            // In atomic multi-hop routes, this is exactly what the preceding
+            // AMM swap step deposited — the user's pre-existing holdings are
+            // untouched.
+            let delta = balance
+                .checked_sub(pre_balance)
+                .ok_or(VaultError::DeltaUnderflow)?;
+            require!(delta > 0, VaultError::ZeroAmount);
+            delta
+        } else {
+            // Convert-all mode: convert the user's entire token balance.
+            require!(balance > 0, VaultError::ZeroAmount);
+            balance
+        }
     };
 
     // --- 2. Compute output (validates mint pair, dust, overflow) ---
@@ -47,7 +66,14 @@ pub fn handler<'info>(
     require!(amount_out >= minimum_output, VaultError::SlippageExceeded);
 
     // --- 4. Log for debugging/indexing ---
-    msg!("convert_v2: effective_amount={}, output={}", effective_amount, amount_out);
+    // Mode: amount_in>0 = exact, amount_in=0+pre_balance>0 = delta, amount_in=0+pre_balance=0 = convert-all
+    msg!(
+        "convert_v2: mode={}, effective_amount={}, output={}, pre_balance={}",
+        if amount_in > 0 { "exact" } else if pre_balance > 0 { "delta" } else { "convert-all" },
+        effective_amount,
+        amount_out,
+        pre_balance
+    );
 
     // --- 5. Transfer input: user -> vault (user-signed) ---
     let remaining = ctx.remaining_accounts;

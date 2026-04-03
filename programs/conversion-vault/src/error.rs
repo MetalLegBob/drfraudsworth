@@ -25,4 +25,7 @@ pub enum VaultError {
 
     #[msg("Input account not owned by signer")]
     InvalidOwner,
+
+    #[msg("Pre-balance exceeds current balance — stale or incorrect snapshot")]
+    DeltaUnderflow,
 }
