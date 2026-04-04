@@ -39,7 +39,7 @@ Dr. Fraudsworth's Finance Factory is a live, mainnet-deployed Solana protocol bu
 
 Dr. Fraudsworth implements a closed economic loop where trading friction generates real yield:
 
-1. **Tax on Every Swap** -- Every token swap through the AMM incurs a configurable tax (14-25% depending on the current epoch). Tax proceeds are split: 71% to PROFIT stakers, 24% to the Carnage Fund, and 5% to the treasury.
+1. **Tax on Every Swap** -- Every token swap through the AMM incurs a configurable tax (1-4% or 11-14% depending on the current epoch). Tax proceeds are split: 71% to PROFIT stakers, 24% to the Carnage Fund, and 5% to the treasury.
 
 2. **VRF-Driven Epochs** -- Epochs advance via Switchboard VRF (verifiable random function), ensuring no admin can manipulate outcomes. Each epoch sets new tax rates and determines whether Carnage triggers.
 
