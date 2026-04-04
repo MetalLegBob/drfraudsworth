@@ -7,7 +7,7 @@ Dr. Fraudsworth's Finance Factory is a live, mainnet-deployed Solana protocol bu
 ## Live Protocol
 
 - **Website:** [fraudsworth.fun](https://fraudsworth.fun)
-- **Documentation:** [fraudsworth.fun/docs](https://fraudsworth.fun/docs)
+- **Documentation:** [docs.fraudsworth.fun](https://docs.fraudsworth.fun)
 - **Explorer:** See program addresses below
 
 ## Deployed Programs (Solana Mainnet)
