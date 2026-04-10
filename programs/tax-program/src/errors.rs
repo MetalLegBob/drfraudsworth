@@ -90,4 +90,23 @@ pub enum TaxError {
     /// Source: Phase 80 (DEF-01) -- pool account ownership verification
     #[msg("Pool account is not owned by AMM program")]
     InvalidPoolOwner,
+
+    /// Caller-supplied tax-side flag (is_crime) does not match the identity
+    /// derived from the validated mint_b account. Runtime bindings now treat
+    /// the caller-supplied arg as a witness cross-checked against the on-chain
+    /// mint; any disagreement reverts the swap.
+    #[msg("Tax identity (is_crime) does not match the validated mint")]
+    TaxIdentityMismatch,
+
+    /// The pool account's stored mint_b does not match the mint_b account
+    /// passed to the instruction. Closes the residual gap where a caller
+    /// could pair a pool with an unrelated mint account.
+    #[msg("Pool mint_b does not match the passed mint_b account")]
+    PoolMintMismatch,
+
+    /// The mint_b account passed to the instruction is not one of the two
+    /// recognized taxed token mints (CRIME / FRAUD) pinned in the Tax Program
+    /// constants for the active cluster.
+    #[msg("mint_b is not a recognized taxed token mint")]
+    UnknownTaxedMint,
 }

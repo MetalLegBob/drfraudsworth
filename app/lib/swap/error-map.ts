@@ -5,7 +5,7 @@
  * messages suitable for display in the swap UI.
  *
  * Error code ranges:
- * - Tax Program (programs/tax-program/src/errors.rs): 6000-6018 (19 variants)
+ * - Tax Program (programs/tax-program/src/errors.rs): 6000-6021 (22 variants)
  * - AMM Program (programs/amm/src/errors.rs): 6000-6017 (18 variants)
  *
  * Note: AMM errors arrive via CPI, so they appear with the AMM program ID
@@ -17,6 +17,7 @@
  */
 
 import { PROGRAM_IDS } from "@/lib/protocol-config";
+import { isBraveBrowser } from "@/lib/brave-detect";
 
 // =============================================================================
 // Tax Program Errors (6000-6018)
@@ -62,6 +63,12 @@ const TAX_ERRORS: Record<number, string> = {
   6017: "Your slippage setting is below the protocol's minimum floor (50% of expected output). Increase your minimum output.",
   // 6018: InvalidPoolOwner
   6018: "Pool account verification failed. Please report this issue.",
+  // 6019: TaxIdentityMismatch
+  6019: "Swap rejected: pool/mint identity check failed. Please refresh and try again.",
+  // 6020: PoolMintMismatch
+  6020: "Swap rejected: pool/mint identity check failed. Please refresh and try again.",
+  // 6021: UnknownTaxedMint
+  6021: "Swap rejected: unrecognized token mint.",
 };
 
 // =============================================================================
@@ -233,6 +240,26 @@ export function parseSwapError(error: unknown): string {
     return "Wallet popup failed to open. If using Brave browser, go to brave://settings/wallet and set the Default Solana Wallet to \"Extensions (no fallback)\", then reload the page.";
   }
 
-  // (h) Fallback
+  // (h) Brave Wallet-specific errors.
+  // Brave Wallet has known bugs with complex DeFi transactions (versioned TXs,
+  // transfer hooks, multi-instruction). Detect common Brave Wallet error patterns
+  // and guide users to switch to a dedicated wallet.
+  if (isBraveBrowser()) {
+    if (/Signature verification failed/i.test(errStr)
+      || /WalletSendTransactionError/i.test(errStr)
+      || /internal error/i.test(errStr)
+      || /An internal error has occurred/i.test(errStr)) {
+      return "This transaction failed due to a known Brave Wallet compatibility issue. "
+        + "For the best experience, please use Phantom, Solflare, or Backpack instead. "
+        + "Go to brave://settings/wallet and set Default Solana Wallet to "
+        + "\"Extensions (no fallback)\", then reload the page.";
+    }
+  }
+
+  // (i) Fallback -- include Brave hint if applicable
+  if (isBraveBrowser()) {
+    return "Swap failed. If transactions keep failing, try switching from Brave Wallet "
+      + "to Phantom or Solflare (brave://settings/wallet > \"Extensions (no fallback)\").";
+  }
   return "Swap failed. Please try again or reduce the swap amount.";
 }

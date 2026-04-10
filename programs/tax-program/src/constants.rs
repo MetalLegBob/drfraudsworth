@@ -145,7 +145,13 @@ pub fn treasury_pubkey() -> Pubkey {
 
 #[cfg(not(any(feature = "devnet", feature = "localnet")))]
 pub fn treasury_pubkey() -> Pubkey {
-    Pubkey::from_str("8kPzhQoUPx7LYM18f9TzskW4ZgvGyq4jMPYZikqmHMH4").unwrap()
+    // Mainnet dedicated treasury wallet (NOT mlbob's devnet wallet 8kPzh...).
+    // Live mainnet Tax Program binary (43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj)
+    // enforces this address. Any drift here will break every mainnet swap with
+    // InvalidTreasury on the next build+deploy. See
+    // .docs/standalone/hardcoded-address-sweep.md for the mandatory pre/post-build
+    // verification procedure that exists specifically to catch this class of drift.
+    Pubkey::from_str("3ihhwLnEJ2duwPSLYxhLbFrdhhxXLcvcrV9rAHqMgzCv").unwrap()
 }
 
 /// Anchor discriminator for Staking::deposit_rewards instruction.
@@ -180,6 +186,53 @@ pub fn get_tax_authority_pda() -> (Pubkey, u8) {
 /// (pubkey, bump) tuple for the WSOL intermediary PDA
 pub fn get_wsol_intermediary_pda() -> (Pubkey, u8) {
     Pubkey::find_program_address(&[WSOL_INTERMEDIARY_SEED], &crate::ID)
+}
+
+// ---------------------------------------------------------------------------
+// Taxed Token Mints (cluster-pinned)
+// ---------------------------------------------------------------------------
+//
+// Pinned addresses for the two taxed mints (CRIME, FRAUD). Used by the swap
+// handlers to derive the tax-side identity from the on-chain mint account
+// passed by the caller, rather than trusting a caller-supplied flag.
+//
+// Feature gating mirrors `epoch_program` and `conversion_vault`:
+//   - `#[cfg(feature = "devnet")]`: devnet addresses from deployments/devnet.json.
+//   - default (mainnet): mainnet addresses from keypairs/mainnet-{crime,fraud}-mint.json.
+//
+// There is intentionally NO `#[cfg(test)]` branch: `cargo build-sbf` is a
+// release cdylib build and does not see `cfg(test)`, which made the test
+// branch dead code for SBF. Integration tests (LiteSVM) instead use
+// `svm.set_account(...)` to place Token-2022 Mint state at the mainnet
+// pubkeys returned below. This keeps source and binary identical and
+// ensures a single source of truth for every build profile.
+
+/// CRIME mint address for the active cluster.
+///
+/// Devnet  : DtbDMB2dU8veALKTB12fi2HYBKMEVoKxYTbLp9VAvAxR
+/// Mainnet : cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc
+#[cfg(feature = "devnet")]
+pub fn crime_mint() -> Pubkey {
+    Pubkey::from_str("DtbDMB2dU8veALKTB12fi2HYBKMEVoKxYTbLp9VAvAxR").unwrap()
+}
+
+#[cfg(not(feature = "devnet"))]
+pub fn crime_mint() -> Pubkey {
+    Pubkey::from_str("cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc").unwrap()
+}
+
+/// FRAUD mint address for the active cluster.
+///
+/// Devnet  : 78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx
+/// Mainnet : FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5
+#[cfg(feature = "devnet")]
+pub fn fraud_mint() -> Pubkey {
+    Pubkey::from_str("78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx").unwrap()
+}
+
+#[cfg(not(feature = "devnet"))]
+pub fn fraud_mint() -> Pubkey {
+    Pubkey::from_str("FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5").unwrap()
 }
 
 #[cfg(test)]
@@ -252,5 +305,45 @@ mod tests {
     fn test_wsol_intermediary_seed() {
         assert_eq!(WSOL_INTERMEDIARY_SEED, b"wsol_intermediary");
         assert_eq!(WSOL_INTERMEDIARY_SEED.len(), 17);
+    }
+
+    #[test]
+    fn test_taxed_mints_are_distinct() {
+        // Under the default (mainnet) build, crime_mint != fraud_mint.
+        assert_ne!(crime_mint(), fraud_mint());
+    }
+
+    #[test]
+    fn test_taxed_mints_are_non_default() {
+        // Neither constant should silently resolve to Pubkey::default() — that
+        // would indicate a feature-flag/build-profile regression.
+        assert_ne!(crime_mint(), Pubkey::default());
+        assert_ne!(fraud_mint(), Pubkey::default());
+    }
+
+    #[test]
+    #[cfg(not(feature = "devnet"))]
+    fn test_taxed_mints_mainnet_values() {
+        assert_eq!(
+            crime_mint().to_string(),
+            "cRiMEhAxoDhcEuh3Yf7Z2QkXUXUMKbakhcVqmDsqPXc"
+        );
+        assert_eq!(
+            fraud_mint().to_string(),
+            "FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "devnet")]
+    fn test_taxed_mints_devnet_values() {
+        assert_eq!(
+            crime_mint().to_string(),
+            "DtbDMB2dU8veALKTB12fi2HYBKMEVoKxYTbLp9VAvAxR"
+        );
+        assert_eq!(
+            fraud_mint().to_string(),
+            "78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx"
+        );
     }
 }

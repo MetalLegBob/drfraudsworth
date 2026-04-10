@@ -27,14 +27,14 @@ use anchor_lang::AccountDeserialize;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::constants::{
-    amm_program_id, epoch_program_id, staking_program_id, treasury_pubkey,
-    CARNAGE_SOL_VAULT_SEED, DEPOSIT_REWARDS_DISCRIMINATOR, ESCROW_VAULT_SEED,
-    MINIMUM_OUTPUT_FLOOR_BPS, STAKE_POOL_SEED, SWAP_AUTHORITY_SEED, TAX_AUTHORITY_SEED,
-    WSOL_INTERMEDIARY_SEED,
+    amm_program_id, crime_mint, epoch_program_id, fraud_mint, staking_program_id,
+    treasury_pubkey, CARNAGE_SOL_VAULT_SEED, DEPOSIT_REWARDS_DISCRIMINATOR,
+    ESCROW_VAULT_SEED, MINIMUM_OUTPUT_FLOOR_BPS, STAKE_POOL_SEED, SWAP_AUTHORITY_SEED,
+    TAX_AUTHORITY_SEED, WSOL_INTERMEDIARY_SEED,
 };
 use crate::errors::TaxError;
 use crate::events::{PoolType, SwapDirection, TaxedSwap};
-use crate::helpers::pool_reader::read_pool_reserves;
+use crate::helpers::pool_reader::read_pool_reserves_with_token_mint;
 use crate::helpers::tax_math::{calculate_output_floor, calculate_tax, split_distribution};
 use crate::state::EpochState;
 
@@ -89,8 +89,33 @@ pub fn handler<'info>(
     // Validate EpochState is initialized (defense-in-depth).
     require!(epoch_state.initialized, TaxError::InvalidEpochState);
 
+    // =========================================================================
+    // 1b. Bind tax-side identity to the validated mint_b account (Option B)
+    //
+    // The caller-supplied `is_crime` flag must NOT be the source of truth for
+    // which tax schedule applies — it is treated as a witness and cross-checked
+    // against the on-chain mint_b account. The mint_b account is itself
+    // validated against pool.mint_b in step 2b below (Option C), so the chain
+    // is: pool bytes -> mint_b account -> derived_is_crime -> tax schedule.
+    //
+    // See 122.1-CONTEXT.md §3.1.
+    // =========================================================================
+    let mint_b_key = ctx.accounts.mint_b.key();
+    let derived_is_crime = if mint_b_key == crime_mint() {
+        true
+    } else if mint_b_key == fraud_mint() {
+        false
+    } else {
+        return err!(TaxError::UnknownTaxedMint);
+    };
+    require!(
+        is_crime == derived_is_crime,
+        TaxError::TaxIdentityMismatch
+    );
+
     // Get the appropriate tax rate (is_buy = false for sell direction).
-    let tax_bps = epoch_state.get_tax_bps(is_crime, false);
+    // Use derived_is_crime so the on-chain state is the only source of truth.
+    let tax_bps = epoch_state.get_tax_bps(derived_is_crime, false);
 
     // =========================================================================
     // 2. Record user's WSOL balance before swap
@@ -98,18 +123,31 @@ pub fn handler<'info>(
     let wsol_before = ctx.accounts.user_token_a.amount;
 
     // =========================================================================
-    // 2b. Enforce protocol minimum output floor (SEC-10)
+    // 2b. Enforce protocol minimum output floor (SEC-10) AND bind pool.mint_b
+    //     to the passed mint_b account (Option C, see 122.1-CONTEXT.md §3.2).
     //
     // For sell (BtoA): reserve_in = reserve_b (token), reserve_out = reserve_a (SOL).
     // The floor protects against zero-slippage sandwich attacks BEFORE CPI.
     // We verify the user's stated minimum is reasonable; the AMM then enforces
     // actual_output >= minimum during execution.
     //
+    // The extended pool reader also returns the pool's stored token-side mint
+    // (whichever of pool.mint_a / pool.mint_b is NOT NATIVE_MINT). We bind it
+    // to the passed mint_b account so a caller cannot pair a CRIME pool with
+    // the FRAUD mint account (or vice versa) to bypass the tax schedule
+    // selected in step 1b.
+    //
     // NOTE: minimum_output is checked (not gross_output) because this runs
     // before the CPI executes. The floor catches bots/frontends that send
     // minimum_output=0 before spending any compute on the swap.
     // =========================================================================
-    let (sol_reserve, token_reserve) = read_pool_reserves(&ctx.accounts.pool)?;
+    let (sol_reserve, token_reserve, pool_token_mint) =
+        read_pool_reserves_with_token_mint(&ctx.accounts.pool)?;
+    require_keys_eq!(
+        pool_token_mint,
+        ctx.accounts.mint_b.key(),
+        TaxError::PoolMintMismatch
+    );
     let output_floor = calculate_output_floor(token_reserve, sol_reserve, amount_in, MINIMUM_OUTPUT_FLOOR_BPS)
         .ok_or(error!(TaxError::TaxOverflow))?;
     require!(
@@ -476,7 +514,7 @@ pub fn handler<'info>(
     let clock = Clock::get()?;
     emit!(TaxedSwap {
         user: ctx.accounts.user.key(),
-        pool_type: if is_crime {
+        pool_type: if derived_is_crime {
             PoolType::SolCrime
         } else {
             PoolType::SolFraud
