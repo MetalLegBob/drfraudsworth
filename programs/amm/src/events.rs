@@ -73,3 +73,54 @@ pub struct AdminBurned {
     /// Slot when the burn occurred.
     pub slot: u64,
 }
+
+// ---------------------------------------------------------------------------
+// Phase 126: Rebalancer liquidity events
+// ---------------------------------------------------------------------------
+
+/// Emitted when liquidity is withdrawn from a pool by the Rebalancer.
+///
+/// Contains all information needed for monitoring and indexing rebalance
+/// activity. `withdraw_bps` is the requested fraction; `amount_a`/`amount_b`
+/// are the actual computed amounts (may differ from BPS due to truncation).
+#[event]
+pub struct LiquidityWithdrawnEvent {
+    /// The pool PDA address.
+    pub pool: Pubkey,
+    /// Requested withdrawal fraction in basis points.
+    pub withdraw_bps: u16,
+    /// Actual amount of token A withdrawn.
+    pub amount_a: u64,
+    /// Actual amount of token B withdrawn.
+    pub amount_b: u64,
+    /// Reserve A after withdrawal.
+    pub reserve_a_after: u64,
+    /// Reserve B after withdrawal.
+    pub reserve_b_after: u64,
+    /// Unix timestamp from Clock sysvar.
+    pub timestamp: i64,
+    /// Slot from Clock sysvar.
+    pub slot: u64,
+}
+
+/// Emitted when liquidity is injected into a pool by the Rebalancer.
+///
+/// Contains post-injection reserve state for monitoring. No BPS field
+/// because injection uses absolute amounts.
+#[event]
+pub struct LiquidityAddedEvent {
+    /// The pool PDA address.
+    pub pool: Pubkey,
+    /// Amount of token A injected.
+    pub amount_a: u64,
+    /// Amount of token B injected.
+    pub amount_b: u64,
+    /// Reserve A after injection.
+    pub reserve_a_after: u64,
+    /// Reserve B after injection.
+    pub reserve_b_after: u64,
+    /// Unix timestamp from Clock sysvar.
+    pub timestamp: i64,
+    /// Slot from Clock sysvar.
+    pub slot: u64,
+}

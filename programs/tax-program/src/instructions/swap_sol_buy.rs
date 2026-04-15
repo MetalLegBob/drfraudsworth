@@ -374,6 +374,7 @@ pub fn handler<'info>(
         staking_portion,
         carnage_portion,
         treasury_portion,
+        accumulator_portion: 0,
         epoch: epoch_state.current_epoch,
         slot: clock.slot,
     });

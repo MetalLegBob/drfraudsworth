@@ -109,4 +109,16 @@ pub enum TaxError {
     /// constants for the active cluster.
     #[msg("mint_b is not a recognized taxed token mint")]
     UnknownTaxedMint,
+
+    /// The USDC mint account does not match the expected USDC mint for this cluster
+    #[msg("The USDC mint account does not match the expected USDC mint for this cluster")]
+    InvalidUsdcMint,
+
+    /// USDC accumulator PDA does not match expected derivation
+    #[msg("USDC accumulator PDA does not match expected derivation")]
+    InvalidAccumulator,
+
+    /// Rebalancer program address mismatch
+    #[msg("Rebalancer program address mismatch")]
+    InvalidRebalancerProgram,
 }

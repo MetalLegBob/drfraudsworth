@@ -1,7 +1,7 @@
 # Deployment Report
 
 Generated: 2026-03-23T21:46:52.918Z
-Cluster: devnet (https://devnet.helius-rpc.com/?api-key=your-helius-api-key-here)
+Cluster: devnet (https://devnet.helius-rpc.com/?api-key=ad899a27-7037-4c79-a764-8162d25c576a)
 Wallet: 8kPzhQoUPx7LYM18f9TzskW4ZgvGyq4jMPYZikqmHMH4
 Source: deployments/devnet.json
 

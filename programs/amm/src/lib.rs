@@ -91,4 +91,36 @@ pub mod amm {
         instructions::swap_sol_pool::handler(ctx, amount_in, direction, minimum_amount_out)
     }
 
+    /// Withdraw proportional liquidity from a pool.
+    ///
+    /// Only callable by the Rebalancer program via RebalanceAuthority PDA.
+    /// Calculates both token amounts as a BPS fraction of current reserves.
+    /// Maximum withdrawal is 50% per call (MAX_WITHDRAW_BPS = 5000).
+    ///
+    /// # Arguments
+    /// * `withdraw_bps` - Fraction of pool to withdraw in basis points (1-5000)
+    pub fn withdraw_liquidity<'info>(
+        ctx: Context<'_, '_, 'info, 'info, WithdrawLiquidity<'info>>,
+        withdraw_bps: u16,
+    ) -> Result<()> {
+        instructions::withdraw_liquidity::handler(ctx, withdraw_bps)
+    }
+
+    /// Inject liquidity into a pool.
+    ///
+    /// Only callable by the Rebalancer program via RebalanceAuthority PDA.
+    /// Accepts arbitrary token amounts -- no proportionality enforcement.
+    /// Pool price adjusts naturally; arbitrageurs correct minor imbalances.
+    ///
+    /// # Arguments
+    /// * `amount_a` - Amount of token A to inject
+    /// * `amount_b` - Amount of token B to inject
+    pub fn add_liquidity<'info>(
+        ctx: Context<'_, '_, 'info, 'info, AddLiquidity<'info>>,
+        amount_a: u64,
+        amount_b: u64,
+    ) -> Result<()> {
+        instructions::add_liquidity::handler(ctx, amount_a, amount_b)
+    }
+
 }

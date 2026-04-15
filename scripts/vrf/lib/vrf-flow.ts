@@ -39,6 +39,7 @@ import {
   Connection,
 } from "@solana/web3.js";
 import * as sb from "@switchboard-xyz/on-demand";
+import { buildPriorityFeeIx } from "./priority-fee";
 
 // ─── Interfaces ────────────────────────────────────────────────────────────
 
@@ -455,8 +456,10 @@ async function sendRevealAndConsume(
     // Bundle all three: reveal + consume + executeCarnageAtomic in ONE v0 TX
     // 600,000 CU covers reveal (~50k) + consume (~100k) + executeCarnageAtomic (~300k swap)
     const { sendV0Transaction } = await import("../../e2e/lib/alt-helper");
+    const tx3PriorityFeeIx = await buildPriorityFeeIx(connection);
     const instructions = [
       ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 }),
+      tx3PriorityFeeIx,
       revealIx,
       consumeIx,
       carnageIx,
@@ -474,8 +477,10 @@ async function sendRevealAndConsume(
   }
 
   // Legacy path: reveal + consume only (no carnageAccounts provided)
+  const legacyPriorityFeeIx = await buildPriorityFeeIx(connection);
   const consumeTx = new Transaction().add(
     ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+    legacyPriorityFeeIx,
     revealIx,
     consumeIx
   );
@@ -648,7 +653,8 @@ export async function advanceEpochWithVRF(
         sbProgram as any, retryRngKp, queueAccount.pubkey
       );
 
-      const retryCreateTx = new Transaction().add(retryCreateIx);
+      const recoveryCreatePriorityFeeIx = await buildPriorityFeeIx(connection);
+      const retryCreateTx = new Transaction().add(recoveryCreatePriorityFeeIx, retryCreateIx);
       retryCreateTx.feePayer = wallet.publicKey;
       retryCreateTx.recentBlockhash = (
         await connection.getLatestBlockhash()
@@ -673,11 +679,13 @@ export async function advanceEpochWithVRF(
         })
         .instruction();
 
+      const recoveryCommitPriorityFeeIx = await buildPriorityFeeIx(connection);
       const { sig: retryCommitSig } = await commitWithOracleRetry(
         retryRandomness,
         queueAccount.pubkey,
         (commitIx) => new Transaction().add(
           ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+          recoveryCommitPriorityFeeIx,
           commitIx,
           retryVrfIx,
         ),
@@ -880,7 +888,8 @@ export async function advanceEpochWithVRF(
       );
       randomness = newRandomness;
 
-      const createTx = new Transaction().add(createIx);
+      const priorityFeeIx = await buildPriorityFeeIx(connection);
+      const createTx = new Transaction().add(priorityFeeIx, createIx);
       createTx.feePayer = wallet.publicKey;
       createTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
       createTx.sign(wallet.payer, rngKp);
@@ -904,7 +913,8 @@ export async function advanceEpochWithVRF(
     randomness = newRandomness;
     console.log(`  [tx1] Randomness: ${randomness.pubkey.toBase58()}`);
 
-    const createTx = new Transaction().add(createIx);
+    const freshPriorityFeeIx = await buildPriorityFeeIx(connection);
+    const createTx = new Transaction().add(freshPriorityFeeIx, createIx);
     createTx.feePayer = wallet.publicKey;
     createTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
     createTx.sign(wallet.payer, rngKp);
@@ -935,11 +945,13 @@ export async function advanceEpochWithVRF(
     })
     .instruction();
 
+  const tx2PriorityFeeIx = await buildPriorityFeeIx(connection);
   const { sig: commitSig } = await commitWithOracleRetry(
     randomness,
     queueAccount.pubkey,
     (commitIx) => new Transaction().add(
       ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+      tx2PriorityFeeIx,
       commitIx,
       triggerIx,
     ),
@@ -1027,7 +1039,8 @@ export async function advanceEpochWithVRF(
       queueAccount.pubkey
     );
 
-    const retryCreateTx = new Transaction().add(retryCreateIx);
+    const happyRecoveryCreatePriorityFeeIx = await buildPriorityFeeIx(connection);
+    const retryCreateTx = new Transaction().add(happyRecoveryCreatePriorityFeeIx, retryCreateIx);
     retryCreateTx.feePayer = wallet.publicKey;
     retryCreateTx.recentBlockhash = (
       await connection.getLatestBlockhash()
@@ -1054,11 +1067,13 @@ export async function advanceEpochWithVRF(
       })
       .instruction();
 
+    const happyRecoveryCommitPriorityFeeIx = await buildPriorityFeeIx(connection);
     const { sig: retryCommitSig2 } = await commitWithOracleRetry(
       retryRandomness,
       queueAccount.pubkey,
       (commitIx) => new Transaction().add(
         ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+        happyRecoveryCommitPriorityFeeIx,
         commitIx,
         retryIx,
       ),
@@ -1243,8 +1258,9 @@ export async function closeRandomnessAccount(
 
     const randomness = new sb.Randomness(sbProgram as any, randomnessPubkey);
     const closeIx = await randomness.closeIx();
+    const closePriorityFeeIx = await buildPriorityFeeIx(connection);
 
-    const tx = new Transaction().add(closeIx);
+    const tx = new Transaction().add(closePriorityFeeIx, closeIx);
     const sig = await provider.sendAndConfirm(tx, []);
     return sig;
   } catch (err) {

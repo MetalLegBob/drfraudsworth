@@ -36,8 +36,17 @@
 
 import { createServer, Server } from "http";
 import * as fs from "fs";
-import { Keypair, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction, Connection } from "@solana/web3.js";
-import { AnchorProvider, Program } from "@coral-xyz/anchor";
+import {
+  AddressLookupTableAccount,
+  ComputeBudgetProgram,
+  Keypair,
+  PublicKey,
+  LAMPORTS_PER_SOL,
+  SystemProgram,
+  Transaction,
+  Connection,
+} from "@solana/web3.js";
+import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
 import * as sb from "@switchboard-xyz/on-demand";
 import { NATIVE_MINT } from "@solana/spl-token";
 import { loadCrankProvider, loadCrankPrograms, loadManifest } from "./crank-provider";
@@ -48,8 +57,10 @@ import {
   waitForSlotAdvance,
   sleep,
 } from "../vrf/lib/vrf-flow";
+import { buildPriorityFeeIx } from "../vrf/lib/priority-fee";
 import { readEpochState } from "../vrf/lib/epoch-reader";
-import { getOrCreateProtocolALT } from "../e2e/lib/alt-helper";
+import { getOrCreateProtocolALT, sendV0Transaction } from "../e2e/lib/alt-helper";
+import { buildExecuteCarnageAtomicIx } from "../e2e/lib/carnage-flow";
 import { sendAlert } from "./lib/telegram";
 
 // ---- Constants ----
@@ -116,9 +127,11 @@ const MAX_HOURLY_SPEND_LAMPORTS = 500_000_000; // 0.5 SOL
 
 /**
  * Conservative per-transaction cost estimate: base fee (5000 lamports) +
- * priority fee headroom. Imprecise but safe — the cap has 50x headroom.
+ * priority fee (dynamic, typically 5k-50k lamports for 400k CU).
+ * Bumped from 10k to account for priority fees. The hourly cap has
+ * generous headroom so this doesn't need to be precise.
  */
-const ESTIMATED_TX_COST_LAMPORTS = 10_000;
+const ESTIMATED_TX_COST_LAMPORTS = 100_000;
 
 interface SpendEntry {
   lamports: number;
@@ -448,6 +461,90 @@ async function sweepStaleRandomnessAccounts(
   }
 }
 
+// ---- Orphaned Carnage Recovery ----
+
+/**
+ * Execute a standalone executeCarnageAtomic when carnage_pending is true but
+ * our atomic bundle did not run it (e.g. a competing crank won the race for
+ * consume_randomness, which sets carnage_pending but does NOT execute the
+ * carnage). Without this recovery, the pending state silently rots until the
+ * next epoch's VRF roll overwrites it — losing the carnage entirely.
+ *
+ * Safe to call every cycle: when carnage_pending=false, returns immediately
+ * without sending a TX (zero on-chain calls). When pending=true, builds the
+ * 23-account IX, sends as a v0 TX with the protocol ALT, and verifies the
+ * state cleared.
+ *
+ * Failures here are NON-FATAL: we log and continue. The next cycle will retry,
+ * and the circuit breaker is unaffected (we don't re-throw).
+ *
+ * @returns true if a carnage was executed (or attempted), false if no-op
+ */
+async function executeOrphanedCarnageIfPending(
+  provider: AnchorProvider,
+  epochProgram: Program,
+  vrfAccounts: VRFAccounts,
+  alt: AddressLookupTableAccount,
+  carnagePendingFromState: boolean
+): Promise<boolean> {
+  if (!carnagePendingFromState) {
+    return false; // Fast path: nothing to do
+  }
+  if (!vrfAccounts.carnageAccounts) {
+    console.log("  [orphan-carnage] WARNING: pending detected but no carnageAccounts configured");
+    return false;
+  }
+
+  console.log("  [orphan-carnage] carnage_pending=true detected — building standalone executeCarnageAtomic...");
+
+  try {
+    // Build the IX (handles 23 named accounts + Transfer Hook resolution)
+    const carnageIx = await buildExecuteCarnageAtomicIx(
+      epochProgram,
+      vrfAccounts,
+      provider.wallet.publicKey,
+      provider.connection
+    );
+
+    const priorityFeeIx = await buildPriorityFeeIx(provider.connection);
+    const instructions = [
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+      priorityFeeIx,
+      carnageIx,
+    ];
+
+    // Send as v0 TX with ALT (Sell path needs the compression; Burn fits without
+    // but we use ALT unconditionally for consistency with the bundled atomic path)
+    const wallet = provider.wallet as Wallet;
+    const txSig = await sendV0Transaction(
+      provider.connection,
+      provider.wallet.publicKey,
+      instructions,
+      [wallet.payer],
+      alt
+    );
+    console.log(`  [orphan-carnage] TX landed: ${txSig.slice(0, 16)}...`);
+
+    // Verify state flipped
+    await sleep(2000);
+    const stateAfter = await readEpochState(epochProgram, vrfAccounts.epochStatePda);
+    if (!stateAfter.carnagePending && stateAfter.lastCarnageEpoch === stateAfter.currentEpoch) {
+      console.log(`  [orphan-carnage] SUCCESS — carnage executed for epoch ${stateAfter.currentEpoch}`);
+      return true;
+    } else if (!stateAfter.carnagePending) {
+      console.log(`  [orphan-carnage] cleared but lastCarnageEpoch did not advance (epoch ${stateAfter.currentEpoch})`);
+      return true;
+    } else {
+      console.log(`  [orphan-carnage] WARNING: TX landed but carnage_pending still true`);
+      return false;
+    }
+  } catch (err) {
+    // Non-fatal — log and continue. Next cycle will retry.
+    console.log(`  [orphan-carnage] WARNING: standalone execution failed: ${String(err).slice(0, 300)}`);
+    return false;
+  }
+}
+
 // ---- Main ----
 
 async function main(): Promise<void> {
@@ -570,6 +667,33 @@ async function main(): Promise<void> {
       );
       await sleep(RPC_DELAY_MS);
 
+      // 1b. Orphaned-carnage recovery — fires when a competing crank landed
+      // consume_randomness ahead of us. consume_randomness sets carnage_pending
+      // but does NOT execute carnage; without this check the pending state
+      // gets silently overwritten by the next epoch's VRF roll. This was the
+      // root cause of the 77-epoch carnage gap observed on mainnet 2026-04-06.
+      if (epochState.carnagePending) {
+        const executed = await executeOrphanedCarnageIfPending(
+          provider,
+          programs.epochProgram,
+          vrfAccounts,
+          alt,
+          true
+        );
+        if (executed) {
+          // Refresh epoch state after the standalone TX so downstream logic
+          // (boundary wait, advance) sees post-carnage values.
+          epochState = await readEpochState(
+            programs.epochProgram,
+            vrfAccounts.epochStatePda
+          );
+          await sleep(RPC_DELAY_MS);
+          // Record spend conservatively (1 v0 TX with priority fee)
+          recordSpend(ESTIMATED_TX_COST_LAMPORTS);
+          carnageTriggerCount++;
+        }
+      }
+
       // 2. Check wallet balance (log warning if low)
       const balance = await provider.connection.getBalance(
         provider.wallet.publicKey
@@ -605,7 +729,9 @@ async function main(): Promise<void> {
           `[crank] Vault balance low: ${vaultBalance} lamports ` +
           `(need ${MIN_VAULT_BALANCE}). Topping up ${cappedTopUp} lamports...`
         );
+        const topUpPriorityFeeIx = await buildPriorityFeeIx(provider.connection);
         const topUpTx = new Transaction().add(
+          topUpPriorityFeeIx,
           SystemProgram.transfer({
             fromPubkey: provider.wallet.publicKey,
             toPubkey: vaultPubkey,
@@ -743,8 +869,22 @@ async function main(): Promise<void> {
       console.log(`[epoch] ${JSON.stringify(logEntry)}`);
 
     } catch (err) {
-      consecutiveErrors++;
       const errStr = String(err).slice(0, 300);
+
+      // Competing crank detection: 0x1773 = EpochBoundaryNotReached.
+      // Another crank already advanced this epoch, so the on-chain epochStartSlot
+      // moved forward and the next boundary is in the future. This is expected
+      // in a permissionless crank environment — re-sync and wait for the real
+      // next boundary instead of counting it as a failure.
+      if (errStr.includes("0x1773")) {
+        console.log(
+          `[crank] Epoch already advanced by another crank (cycle ${cycleCount}). Re-syncing...`
+        );
+        consecutiveErrors = 0;
+        continue;
+      }
+
+      consecutiveErrors++;
       console.error(
         `[crank] ERROR cycle ${cycleCount} (${consecutiveErrors}/${CIRCUIT_BREAKER_THRESHOLD} consecutive): ${errStr}`
       );

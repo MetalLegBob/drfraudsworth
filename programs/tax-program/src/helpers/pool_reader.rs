@@ -123,6 +123,65 @@ pub fn read_pool_reserves_with_token_mint(
     }
 }
 
+/// Read pool reserves for a USDC pool, returning (usdc_reserve, token_reserve, token_mint).
+///
+/// Similar to [`read_pool_reserves_with_token_mint`] but uses the passed USDC mint
+/// key instead of NATIVE_MINT to identify the "quote" side. Works correctly
+/// regardless of canonical ordering (USDC could be mint_a or mint_b depending
+/// on cluster and token pair).
+///
+/// # Arguments
+/// * `pool_info` - The AMM pool AccountInfo (must be at least 153 bytes)
+/// * `usdc_mint_key` - The USDC mint Pubkey for the active cluster
+///
+/// # Returns
+/// * `Ok((usdc_reserve, token_reserve, token_mint))` - Reserves normalized to
+///   (USDC, token) order, plus the pool's token-side mint (CRIME or FRAUD).
+/// * `Err(TaxError::InvalidPoolOwner)` - If account not owned by AMM program
+/// * `Err(TaxError::InvalidPoolType)` - If data is too short
+/// * `Err(TaxError::InvalidUsdcMint)` - If neither pool mint matches USDC
+pub fn read_pool_reserves_for_usdc(
+    pool_info: &AccountInfo,
+    usdc_mint_key: &Pubkey,
+) -> Result<(u64, u64, Pubkey)> {
+    // DEF-01: Verify the pool account is owned by the AMM program.
+    require!(
+        *pool_info.owner == amm_program_id(),
+        TaxError::InvalidPoolOwner
+    );
+
+    let data = pool_info.data.borrow();
+
+    // PoolState minimum size: 153 bytes (same layout as SOL pools)
+    require!(data.len() >= 153, TaxError::InvalidPoolType);
+
+    let mint_a = Pubkey::try_from(&data[9..41])
+        .map_err(|_| error!(TaxError::TaxOverflow))?;
+    let mint_b = Pubkey::try_from(&data[41..73])
+        .map_err(|_| error!(TaxError::TaxOverflow))?;
+
+    let reserve_a = u64::from_le_bytes(
+        data[137..145]
+            .try_into()
+            .map_err(|_| error!(TaxError::TaxOverflow))?,
+    );
+    let reserve_b = u64::from_le_bytes(
+        data[145..153]
+            .try_into()
+            .map_err(|_| error!(TaxError::TaxOverflow))?,
+    );
+
+    if mint_a == *usdc_mint_key {
+        // USDC is mint_a: return (usdc_reserve=reserve_a, token_reserve=reserve_b, token_mint=mint_b)
+        Ok((reserve_a, reserve_b, mint_b))
+    } else if mint_b == *usdc_mint_key {
+        // USDC is mint_b: return (usdc_reserve=reserve_b, token_reserve=reserve_a, token_mint=mint_a)
+        Ok((reserve_b, reserve_a, mint_a))
+    } else {
+        err!(TaxError::InvalidUsdcMint)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,5 +318,78 @@ mod tests {
         .expect("read failed");
         assert_eq!(sol, 42);
         assert_eq!(tok, 84);
+    }
+
+    // -----------------------------------------------------------------------
+    // USDC pool reader tests
+    // -----------------------------------------------------------------------
+
+    fn test_usdc() -> Pubkey {
+        use std::str::FromStr;
+        Pubkey::from_str("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU").unwrap()
+    }
+
+    #[test]
+    fn usdc_is_mint_a_returns_correct_order() {
+        let token = Pubkey::new_unique();
+        let usdc = test_usdc();
+        let data = build_pool_data(usdc, token, 500u64, 1000u64);
+        let result = with_account_info(amm_id(), data, |info| {
+            read_pool_reserves_for_usdc(info, &usdc)
+        })
+        .expect("read failed");
+        assert_eq!(result.0, 500, "usdc_reserve should be reserve_a");
+        assert_eq!(result.1, 1000, "token_reserve should be reserve_b");
+        assert_eq!(result.2, token, "token mint should be mint_b");
+    }
+
+    #[test]
+    fn usdc_is_mint_b_returns_correct_order() {
+        let token = Pubkey::new_unique();
+        let usdc = test_usdc();
+        let data = build_pool_data(token, usdc, 800u64, 300u64);
+        let result = with_account_info(amm_id(), data, |info| {
+            read_pool_reserves_for_usdc(info, &usdc)
+        })
+        .expect("read failed");
+        assert_eq!(result.0, 300, "usdc_reserve should be reserve_b");
+        assert_eq!(result.1, 800, "token_reserve should be reserve_a");
+        assert_eq!(result.2, token, "token mint should be mint_a");
+    }
+
+    #[test]
+    fn neither_mint_is_usdc_returns_error() {
+        let token_a = Pubkey::new_unique();
+        let token_b = Pubkey::new_unique();
+        let usdc = test_usdc();
+        let data = build_pool_data(token_a, token_b, 100u64, 200u64);
+        let result = with_account_info(amm_id(), data, |info| {
+            read_pool_reserves_for_usdc(info, &usdc)
+        });
+        let err = result.expect_err("expected error");
+        let msg = format!("{:?}", err);
+        assert!(
+            msg.contains("InvalidUsdcMint"),
+            "expected InvalidUsdcMint, got {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn usdc_reader_rejects_wrong_owner() {
+        let token = Pubkey::new_unique();
+        let usdc = test_usdc();
+        let data = build_pool_data(usdc, token, 100u64, 200u64);
+        let bogus_owner = Pubkey::new_unique();
+        let result = with_account_info(bogus_owner, data, |info| {
+            read_pool_reserves_for_usdc(info, &usdc)
+        });
+        let err = result.expect_err("expected error");
+        let msg = format!("{:?}", err);
+        assert!(
+            msg.contains("InvalidPoolOwner"),
+            "expected InvalidPoolOwner, got {}",
+            msg
+        );
     }
 }

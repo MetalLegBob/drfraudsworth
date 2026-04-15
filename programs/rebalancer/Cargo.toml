@@ -1,0 +1,26 @@
+[package]
+name = "rebalancer"
+version = "0.1.0"
+description = "Dr Fraudsworth Rebalancer Program - USDC conversion, SOL distribution, and liquidity rebalancing"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.32.1", features = ["token", "token_2022", "associated_token"] }
+solana-security-txt = "1.1.1"
+
+[dev-dependencies]
+proptest = "1"
+sha2 = "0.10"
+
+[features]
+default = []
+devnet = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]

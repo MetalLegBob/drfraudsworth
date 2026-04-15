@@ -35,7 +35,9 @@ import {
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
 } from "@solana/spl-token";
 
 import type { Route, RouteStep } from "./route-types";
@@ -104,6 +106,7 @@ async function buildStepTransaction(
   minimumOutput: number,
   priorityFeeMicroLamports: number,
   isMultiHopStep: boolean = false,
+  preBalance: number = 0,
 ): Promise<Transaction> {
   const isCrime =
     step.inputToken === "CRIME" ||
@@ -134,10 +137,13 @@ async function buildStepTransaction(
   }
 
   // Vault conversion steps (CRIME/FRAUD <-> PROFIT)
-  // When isMultiHopStep=true: convert-all mode (amount_in=0) reads the user's
-  // on-chain balance — whatever the preceding AMM step deposited in the same leg.
-  // When isMultiHopStep=false: exact amount — used for 1-hop converts AND for
-  // vault steps at the start of a split-route leg (prevents greedy consumption).
+  // Delta mode (amount_in=0, preBalance>0): converts only the tokens deposited
+  // by the preceding AMM step (current_balance - preBalance). User's pre-existing
+  // holdings are untouched. Used for multi-hop vault steps that follow an AMM step.
+  // Convert-all mode (amount_in=0, preBalance=0): converts entire balance.
+  // Used for direct "convert all" button (1-hop).
+  // Exact mode (amount_in>0): converts exactly that amount. Used for direct
+  // converts with specific amounts and split-route leg-start vault steps.
   if (step.pool.includes("Vault")) {
     const inputMint = step.inputToken === "PROFIT" ? MINTS.PROFIT : (isCrime ? MINTS.CRIME : MINTS.FRAUD);
     const outputMint = step.outputToken === "PROFIT" ? MINTS.PROFIT : (isCrime ? MINTS.CRIME : MINTS.FRAUD);
@@ -150,6 +156,7 @@ async function buildStepTransaction(
       minimumOutput,
       inputMint,
       outputMint,
+      preBalance: isMultiHopStep ? preBalance : 0,
       priorityFeeMicroLamports,
     });
   }
@@ -327,14 +334,52 @@ export async function buildAtomicRoute(
   //    step N+1's inputAmount. The AMM enforces minimumOutput on-chain — if
   //    step N succeeds, the user has at least that many tokens.
   //
-  //    Vault steps in multi-hop routes use convert-all mode (amount_in=0),
-  //    which reads the user's on-chain balance and converts everything.
-  //    This eliminates intermediate token leakage from slippage differences.
+  //    Vault steps in multi-hop routes use delta mode (amount_in=0, preBalance>0).
+  //    The vault computes current_balance - preBalance to convert only the tokens
+  //    deposited by the preceding AMM step. This prevents both intermediate token
+  //    leakage (from slippage differences) AND greedy consumption of pre-existing
+  //    user holdings (the bug that convert-all mode caused).
   //
   //    Split routes have TWO INDEPENDENT legs (e.g., steps [0,1] and [2,3]).
   //    Each leg's first step must use its own inputAmount from the route
   //    quote, not the output from the previous leg. A leg boundary is detected
   //    when a step's inputToken matches the route's overall inputToken.
+
+  // Snapshot user's intermediate token balances for delta mode.
+  // For each vault step that follows an AMM step (multi-hop), we need to know
+  // the user's token balance BEFORE the TX executes, so the vault can compute
+  // how much was deposited by the swap (delta = post_balance - pre_balance).
+  const intermediateBalances: Record<string, number> = {};
+  if (route.steps.length > 1) {
+    const vaultSteps = route.steps.filter((s, idx) => {
+      const isFirst = idx === 0 || (route.isSplit && s.inputToken === route.inputToken);
+      return s.pool.includes("Vault") && !isFirst;
+    });
+    for (const vs of vaultSteps) {
+      const tokenSymbol = vs.inputToken;
+      if (intermediateBalances[tokenSymbol] === undefined) {
+        const mint = tokenSymbol === "PROFIT" ? MINTS.PROFIT
+          : tokenSymbol === "CRIME" ? MINTS.CRIME : MINTS.FRAUD;
+        try {
+          // allowOwnerOffCurve=true: we're only deriving the address, not creating
+          // the account. Safe and necessary for PDA-based wallet adapters.
+          const ata = await getAssociatedTokenAddress(mint, userPublicKey, true, TOKEN_2022_PROGRAM_ID);
+          const resp = await connection.getTokenAccountBalance(ata);
+          intermediateBalances[tokenSymbol] = Number(resp.value.amount);
+        } catch (err: unknown) {
+          // "Account not found" or "could not find account" = user has 0 balance (safe).
+          // Any other RPC error (timeout, rate limit) = abort to prevent silent convert-all.
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("could not find account") || msg.includes("not found")) {
+            intermediateBalances[tokenSymbol] = 0;
+          } else {
+            throw new Error(`Failed to snapshot ${tokenSymbol} balance for delta mode: ${msg}`);
+          }
+        }
+      }
+    }
+  }
+
   const stepTransactions: Transaction[] = [];
   let previousMinimumOutput: number | null = null;
 
@@ -366,13 +411,15 @@ export async function buildAtomicRoute(
       effectiveStep.outputAmount * (10_000 - slippageBps) / 10_000,
     );
 
-    // Convert-all mode (amount_in=0) should only be used for vault steps
-    // that RECEIVE tokens from a preceding AMM step in the same leg.
-    // In split routes, vault steps at the START of a leg must use exact
-    // amounts — otherwise leg 1's vault greedily converts the user's entire
-    // balance, leaving 0 for leg 2's vault (ZeroAmount error).
+    // Delta mode: vault steps that follow an AMM step in the same leg use
+    // amount_in=0 + preBalance to convert only the deposited tokens.
+    // Split-route leg-start vault steps use exact amounts (preBalance=0)
+    // to prevent leg 1's vault consuming tokens meant for leg 2.
     const isFirstStepInLeg = i === 0 || isNewLeg;
     const useConvertAll = route.steps.length > 1 && !isFirstStepInLeg;
+    const stepPreBalance = useConvertAll && step.pool.includes("Vault")
+      ? (intermediateBalances[step.inputToken] ?? 0)
+      : 0;
     const tx = await buildStepTransaction(
       effectiveStep,
       connection,
@@ -380,6 +427,7 @@ export async function buildAtomicRoute(
       minimumOutput,
       priorityFeeMicroLamports,
       useConvertAll,
+      stepPreBalance,
     );
     stepTransactions.push(tx);
 

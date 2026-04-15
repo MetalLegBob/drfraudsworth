@@ -214,7 +214,31 @@ export async function getOrCreateProtocolALT(
   const allAddresses = collectProtocolAddresses(manifest, carnageWsolPubkey);
   console.log(`  ALT: ${allAddresses.length} protocol addresses collected`);
 
-  // Check if we have a cached ALT address
+  // Priority 1: ALT_ADDRESS env var (Railway / CI — avoids creating new ALTs on every deploy)
+  const altAddressEnv = process.env.ALT_ADDRESS;
+  if (altAddressEnv) {
+    try {
+      const altAddress = new PublicKey(altAddressEnv);
+      const altAccount = await connection.getAddressLookupTable(altAddress);
+      await sleep(RPC_DELAY_MS);
+
+      if (altAccount.value) {
+        console.log(
+          `  ALT: Loaded from ALT_ADDRESS env var ${altAddress.toBase58().slice(0, 12)}... (${altAccount.value.state.addresses.length} addresses)`
+        );
+        return altAccount.value;
+      }
+      console.log(
+        `  ALT: ALT_ADDRESS env var set but account not found on-chain. Falling through...`
+      );
+    } catch (err) {
+      console.log(
+        `  ALT: ALT_ADDRESS env var invalid: ${String(err).slice(0, 100)}. Falling through...`
+      );
+    }
+  }
+
+  // Priority 2: Cached ALT address on disk
   if (fs.existsSync(ALT_CACHE_PATH)) {
     try {
       const cached = JSON.parse(fs.readFileSync(ALT_CACHE_PATH, "utf-8"));

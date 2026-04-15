@@ -110,6 +110,13 @@ export interface VaultConvertParams {
   inputMint: PublicKey;
   /** Output mint (PROFIT, CRIME, or FRAUD) */
   outputMint: PublicKey;
+  /**
+   * User's input token balance before the preceding swap step (default 0).
+   * When > 0 and amountInBaseUnits == 0: delta mode — vault converts only
+   * the tokens deposited since this balance (current_balance - preBalance).
+   * When 0: convert-all mode (if amountInBaseUnits == 0) or ignored (if > 0).
+   */
+  preBalance?: number;
   /** Compute unit limit (default 200,000) */
   computeUnits?: number;
   /** Priority fee in microLamports per compute unit (default 0) */
@@ -494,6 +501,7 @@ export async function buildVaultConvertTransaction(params: VaultConvertParams): 
     minimumOutput,
     inputMint,
     outputMint,
+    preBalance = 0,
     computeUnits = DEFAULT_COMPUTE_UNITS,
     priorityFeeMicroLamports = 0,
   } = params;
@@ -545,7 +553,7 @@ export async function buildVaultConvertTransaction(params: VaultConvertParams): 
   const vaultProgram = getVaultProgram(connection);
 
   const convertIx = await vaultProgram.methods
-    .convertV2(new BN(amountInBaseUnits), new BN(minimumOutput))
+    .convertV2(new BN(amountInBaseUnits), new BN(minimumOutput), new BN(preBalance))
     .accountsStrict({
       user: userPublicKey,
       vaultConfig,

@@ -11,6 +11,7 @@
  */
 
 import { PROGRAM_IDS } from "@/lib/protocol-config";
+import { isBraveBrowser } from "@/lib/brave-detect";
 
 // =============================================================================
 // Bonding Curve Errors (6000-6023)
@@ -144,6 +145,23 @@ export function parseCurveError(error: unknown): string {
     return "Wallet popup failed to open. If using Brave browser, go to brave://settings/wallet and set the Default Solana Wallet to \"Extensions (no fallback)\", then reload the page.";
   }
 
-  // (i) Fallback
+  // (i) Brave Wallet-specific errors
+  if (isBraveBrowser()) {
+    if (/Signature verification failed/i.test(errStr)
+      || /WalletSendTransactionError/i.test(errStr)
+      || /internal error/i.test(errStr)
+      || /An internal error has occurred/i.test(errStr)) {
+      return "This transaction failed due to a known Brave Wallet compatibility issue. "
+        + "For the best experience, please use Phantom, Solflare, or Backpack instead. "
+        + "Go to brave://settings/wallet and set Default Solana Wallet to "
+        + "\"Extensions (no fallback)\", then reload the page.";
+    }
+  }
+
+  // (j) Fallback -- include Brave hint if applicable
+  if (isBraveBrowser()) {
+    return "Transaction failed. If transactions keep failing, try switching from Brave Wallet "
+      + "to Phantom or Solflare (brave://settings/wallet > \"Extensions (no fallback)\").";
+  }
   return "Transaction failed. Please try again or adjust the amount.";
 }

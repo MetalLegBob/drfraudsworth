@@ -130,6 +130,43 @@ pub fn check_swap_output_nonzero(effective_input: u128, amount_out: u64) -> bool
     !(amount_out == 0 && effective_input > 0)
 }
 
+/// Calculate withdrawal amounts for both sides of a pool.
+///
+/// Returns `(amount_a, amount_b)` proportional to `withdraw_bps`.
+/// Uses u128 intermediates to prevent overflow (same pattern as `calculate_effective_input`).
+///
+/// The 5000 BPS (50%) cap is hardcoded here to keep this module dependency-free
+/// (no `crate::constants` import). The same limit is exported as `MAX_WITHDRAW_BPS`
+/// in `constants.rs` for instruction-level validation.
+///
+/// # Arguments
+/// * `reserve_a` - Current reserve of token A
+/// * `reserve_b` - Current reserve of token B
+/// * `withdraw_bps` - Withdrawal fraction in basis points (max 5000 = 50%)
+///
+/// # Returns
+/// * `Some((amount_a, amount_b))` - Proportional withdrawal amounts (may be 0 if reserve is tiny)
+/// * `None` if `withdraw_bps` is 0, exceeds 5000, or arithmetic overflows
+///
+/// # Examples
+/// - reserve_a=1_000_000, reserve_b=2_000_000, bps=5000 -> Some((500_000, 1_000_000))
+/// - reserve_a=1, reserve_b=1_000_000, bps=100 -> Some((0, 10_000))  // truncation on small reserve
+/// - bps=5001 -> None (exceeds 50% cap)
+/// - bps=0 -> None (no-op)
+pub fn calculate_withdraw_amounts(
+    reserve_a: u64,
+    reserve_b: u64,
+    withdraw_bps: u16,
+) -> Option<(u64, u64)> {
+    if withdraw_bps == 0 || withdraw_bps > 5000 {
+        return None;
+    }
+    let bps = withdraw_bps as u128;
+    let amount_a = (reserve_a as u128).checked_mul(bps)?.checked_div(10_000)?;
+    let amount_b = (reserve_b as u128).checked_mul(bps)?.checked_div(10_000)?;
+    Some((u64::try_from(amount_a).ok()?, u64::try_from(amount_b).ok()?))
+}
+
 // =============================================================================
 // Tests
 // =============================================================================
@@ -492,6 +529,77 @@ mod tests {
                     );
                 }
             }
+
+            /// Property 4: Withdrawal amounts never exceed reserves.
+            ///
+            /// For any valid BPS (1..=5000) and any reserve values,
+            /// the withdrawn amount must be <= the reserve. This prevents
+            /// the Rebalancer from extracting more than exists in the pool.
+            #[test]
+            fn withdraw_never_exceeds_reserves(
+                reserve_a in reserve_strategy(),
+                reserve_b in reserve_strategy(),
+                bps in 1u16..=5000u16,
+            ) {
+                if let Some((a, b)) = calculate_withdraw_amounts(reserve_a, reserve_b, bps) {
+                    prop_assert!(a <= reserve_a, "withdraw_a {} > reserve_a {}", a, reserve_a);
+                    prop_assert!(b <= reserve_b, "withdraw_b {} > reserve_b {}", b, reserve_b);
+                }
+            }
         }
+    }
+
+    // =========================================================================
+    // Part C: Withdrawal math tests (calculate_withdraw_amounts)
+    // =========================================================================
+
+    #[test]
+    fn withdraw_50pct() {
+        let (a, b) = calculate_withdraw_amounts(1_000_000, 2_000_000, 5000).unwrap();
+        assert_eq!(a, 500_000);
+        assert_eq!(b, 1_000_000);
+    }
+
+    #[test]
+    fn withdraw_10pct() {
+        let (a, b) = calculate_withdraw_amounts(1_000_000, 2_000_000, 1000).unwrap();
+        assert_eq!(a, 100_000);
+        assert_eq!(b, 200_000);
+    }
+
+    #[test]
+    fn withdraw_exceeds_max() {
+        assert!(calculate_withdraw_amounts(1_000_000, 2_000_000, 5001).is_none());
+    }
+
+    #[test]
+    fn withdraw_zero_bps() {
+        assert!(calculate_withdraw_amounts(1_000_000, 2_000_000, 0).is_none());
+    }
+
+    #[test]
+    fn withdraw_truncation_small_reserve() {
+        // 1 * 100 / 10000 = 0 (truncated)
+        let (a, b) = calculate_withdraw_amounts(1, 1_000_000, 100).unwrap();
+        assert_eq!(a, 0);
+        assert_eq!(b, 10_000);
+    }
+
+    #[test]
+    fn withdraw_u64_max_reserves() {
+        // Must not overflow in u128
+        let result = calculate_withdraw_amounts(u64::MAX, u64::MAX, 5000);
+        assert!(result.is_some());
+        let (a, b) = result.unwrap();
+        // u64::MAX * 5000 / 10000 = u64::MAX / 2 (integer division)
+        assert_eq!(a, u64::MAX / 2);
+        assert_eq!(b, u64::MAX / 2);
+    }
+
+    #[test]
+    fn withdraw_zero_reserves() {
+        let (a, b) = calculate_withdraw_amounts(0, 0, 5000).unwrap();
+        assert_eq!(a, 0);
+        assert_eq!(b, 0);
     }
 }

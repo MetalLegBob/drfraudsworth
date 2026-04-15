@@ -1,6 +1,6 @@
 //! Dr Fraudsworth Tax Program
 //!
-//! Asymmetric taxation and atomic distribution for SOL pool swaps.
+//! Asymmetric taxation and atomic distribution for SOL and USDC pool swaps.
 //! Routes swaps through the AMM with tax calculation and 3-way distribution:
 //! - 71% to staking escrow
 //! - 24% to carnage fund
@@ -73,6 +73,42 @@ pub mod tax_program {
         is_crime: bool,
     ) -> Result<()> {
         instructions::swap_sol_sell::handler(ctx, amount_in, minimum_output, is_crime)
+    }
+
+    /// Execute a USDC -> CRIME/FRAUD swap with buy tax.
+    ///
+    /// Tax is deducted from USDC input before swap execution.
+    /// All USDC tax routes to Rebalancer's USDC accumulator.
+    ///
+    /// # Arguments
+    /// * `amount_in` - Total USDC amount to spend (including tax, 6 decimals)
+    /// * `minimum_output` - Minimum tokens expected (slippage protection)
+    /// * `is_crime` - true = CRIME pool, false = FRAUD pool
+    pub fn swap_usdc_buy<'info>(
+        ctx: Context<'_, '_, 'info, 'info, SwapUsdcBuy<'info>>,
+        amount_in: u64,
+        minimum_output: u64,
+        is_crime: bool,
+    ) -> Result<()> {
+        instructions::swap_usdc_buy::handler(ctx, amount_in, minimum_output, is_crime)
+    }
+
+    /// Execute a CRIME/FRAUD -> USDC swap with sell tax.
+    ///
+    /// Tax is deducted from USDC output after swap execution.
+    /// All USDC tax routes to Rebalancer's USDC accumulator.
+    ///
+    /// # Arguments
+    /// * `amount_in` - Token amount to sell
+    /// * `minimum_output` - Minimum USDC to receive AFTER tax (slippage protection, 6 decimals)
+    /// * `is_crime` - true = CRIME pool, false = FRAUD pool
+    pub fn swap_usdc_sell<'info>(
+        ctx: Context<'_, '_, 'info, 'info, SwapUsdcSell<'info>>,
+        amount_in: u64,
+        minimum_output: u64,
+        is_crime: bool,
+    ) -> Result<()> {
+        instructions::swap_usdc_sell::handler(ctx, amount_in, minimum_output, is_crime)
     }
 
     /// Initialize the WSOL intermediary account (one-time admin setup).

@@ -38,3 +38,24 @@ pub const VAULT_A_SEED: &[u8] = b"a";
 
 /// PDA seed suffix for vault B.
 pub const VAULT_B_SEED: &[u8] = b"b";
+
+// ---------------------------------------------------------------------------
+// Phase 126: Rebalancer integration constants
+// ---------------------------------------------------------------------------
+
+/// Seed for the rebalance_authority PDA derived by Rebalancer Program.
+/// Both Rebalancer Program and AMM must use identical seeds.
+pub const REBALANCE_SEED: &[u8] = b"rebalance";
+
+/// Maximum withdrawal in basis points (5000 = 50%).
+/// Prevents draining a pool in a single call. Rebalancer can call twice
+/// for extreme rebalances. Matches worst-case spec scenario (50/50 -> 100/0 shift).
+///
+/// This constant is used in instruction-level validation (errors.rs / withdraw_liquidity.rs).
+/// The pure math function calculate_withdraw_amounts in helpers/math.rs hardcodes
+/// the same 5000 limit to stay dependency-free (no crate::constants import).
+pub const MAX_WITHDRAW_BPS: u16 = 5000;
+
+/// Rebalancer Program ID -- the only program authorized to sign rebalance_authority.
+/// Generated from keypairs/rebalancer-program.json (Phase 126).
+pub const REBALANCER_PROGRAM_ID: Pubkey = pubkey!("HSfSLtfXvXCeEEamnhPHo8kv8zYvydBCQzU2EazXqdZf");

@@ -111,4 +111,22 @@ pub enum AmmError {
     /// This prevents accidental authority burn via the transfer instruction.
     #[msg("Invalid authority: cannot transfer to Pubkey::default()")]
     InvalidAuthority,
+
+    // --- Phase 126: Rebalancer integration errors ---
+
+    /// Withdrawal BPS exceeds maximum (5000 = 50%).
+    #[msg("Withdraw BPS exceeds maximum (5000)")]
+    WithdrawExceedsMax,
+
+    /// Withdrawal BPS is zero (no-op withdrawal not allowed).
+    #[msg("Withdraw BPS must be greater than zero")]
+    ZeroWithdrawBps,
+
+    /// Both calculated withdrawal amounts are zero (reserves too small for BPS).
+    #[msg("Withdrawal produces zero amounts on both sides")]
+    ZeroWithdrawAmounts,
+
+    /// Injection amount_a and amount_b are both zero.
+    #[msg("Injection amounts must not both be zero")]
+    ZeroInjectionAmounts,
 }

@@ -1,5 +1,5 @@
 .env
-.env.mainnet
+.env.*
 
 # Anchor/Rust build artifacts
 target/
@@ -12,8 +12,8 @@ dist/
 # Deployment artifacts (generated at runtime, contain secrets)
 scripts/deploy/mint-keypairs/
 
-# Mainnet keypairs — NEVER commit these
-keypairs/mainnet-*
+# ALL keypairs — NEVER commit these
+keypairs/
 scripts/deploy/pda-manifest.json
 scripts/deploy/pda-manifest.md
 scripts/deploy/deploy-log-*.txt
@@ -34,9 +34,15 @@ scripts/e2e/*.log
 
 # Original unoptimized PNGs (optimized WebPs live in app/public/scene/)
 WebsiteAssets/
-# === Dev certificates ===
+
+# Internal tooling — never push to public
+.mcp.json
+.planning/
+.claude/
+
+# Dev certificates
 app/certificates/
 *.pem
 
-# === Internal tooling archive variants ===
+# Internal tooling archive variants
 .dbs-archive-*/

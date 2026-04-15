@@ -29,6 +29,7 @@ interface CapturedStep {
   inputAmount: number;
   minimumOutput: number;
   isCrime?: boolean;
+  preBalance?: number;
 }
 
 const capturedSteps: CapturedStep[] = [];
@@ -57,6 +58,7 @@ vi.mock("../swap-builders", () => ({
       type: "vaultConvert",
       inputAmount: params.amountInBaseUnits,
       minimumOutput: params.minimumOutput,
+      preBalance: params.preBalance ?? 0,
     });
     return new Transaction();
   }),
@@ -86,7 +88,13 @@ vi.mock("./error-map", () => ({
 // Mock connection that returns a fake ALT and blockhash
 // ---------------------------------------------------------------------------
 
-function createMockConnection(): Connection {
+/**
+ * Create a mock connection for tests.
+ * @param tokenBalances - Map of token symbol to balance (in base units).
+ *   Used to simulate pre-existing user holdings for delta mode tests.
+ *   Default: empty (all balances return 0 / account not found).
+ */
+function createMockConnection(tokenBalances?: Record<string, number>): Connection {
   return {
     getAddressLookupTable: vi.fn().mockResolvedValue({
       value: {
@@ -99,7 +107,31 @@ function createMockConnection(): Connection {
       blockhash: "FakeBlockhash111111111111111111111111111111111",
       lastValidBlockHeight: 999999,
     }),
+    getTokenAccountBalance: vi.fn().mockImplementation(async () => {
+      // Default: return 0 balance. Tests that need specific balances
+      // use createMockConnection({ CRIME: 500_000_000 }) etc.
+      // The multi-hop-builder resolves the ATA address first, so we
+      // can't easily key by ATA. Instead, return a fixed value and
+      // tests that care about specific token balances use a custom mock.
+      return { value: { amount: "0", decimals: 6, uiAmount: 0 } };
+    }),
   } as unknown as Connection;
+}
+
+/** Create a mock connection where specific tokens have pre-existing balances */
+function createMockConnectionWithBalances(balances: Record<string, number>): Connection {
+  const conn = createMockConnection();
+  // Override getTokenAccountBalance to return the configured balance.
+  // Since the builder calls getTokenAccountBalance with the ATA address,
+  // we return the balance based on call order matching the vault steps.
+  let callCount = 0;
+  const balanceValues = Object.values(balances);
+  (conn.getTokenAccountBalance as any).mockImplementation(async () => {
+    const balance = balanceValues[callCount % balanceValues.length] ?? 0;
+    callCount++;
+    return { value: { amount: String(balance), decimals: 6, uiAmount: balance / 1_000_000 } };
+  });
+  return conn;
 }
 
 // ---------------------------------------------------------------------------
@@ -586,5 +618,122 @@ describe("buildAtomicRoute amount chaining", () => {
     expect(capturedSteps[1].inputAmount).not.toBe(
       Math.floor(88_094_270_000 * 9_500 / 10_000), // old bug value
     );
+  });
+
+  // =========================================================================
+  // 16. Delta mode: 2-hop buy with pre-existing CRIME balance
+  //     Vault receives preBalance so it only converts the AMM deposit (delta).
+  // =========================================================================
+
+  it("2-hop buy: vault step passes preBalance for delta mode", async () => {
+    const existingCrimeBalance = 500_000_000; // 500 CRIME held
+    const connWithBalance = createMockConnectionWithBalances({ CRIME: existingCrimeBalance });
+
+    const route = makeRoute("SOL", "PROFIT", 100_000_000, 4_500_000, [
+      step("CRIME/SOL", "SOL", "CRIME", 100_000_000, 450_000_000),
+      step("CRIME/Vault", "CRIME", "PROFIT", 450_000_000, 4_500_000),
+    ]);
+
+    await buildAtomicRoute(route, connWithBalance, USER, 10_000);
+
+    expect(capturedSteps).toHaveLength(2);
+
+    // Step 2: vault uses delta mode — amount_in=0 + preBalance=500M
+    // On-chain: vault computes (balance_after_swap - 500M) = only the deposit
+    expect(capturedSteps[1].type).toBe("vaultConvert");
+    expect(capturedSteps[1].inputAmount).toBe(0); // delta mode (amount_in=0)
+    expect(capturedSteps[1].preBalance).toBe(existingCrimeBalance);
+  });
+
+  // =========================================================================
+  // 17. Delta mode: 2-hop buy with ZERO pre-existing balance
+  //     preBalance=0 which means delta mode computes balance - 0 = balance
+  //     (equivalent to convert-all, but semantically correct)
+  // =========================================================================
+
+  it("2-hop buy: zero holdings passes preBalance=0", async () => {
+    const route = makeRoute("SOL", "PROFIT", 100_000_000, 4_500_000, [
+      step("CRIME/SOL", "SOL", "CRIME", 100_000_000, 450_000_000),
+      step("CRIME/Vault", "CRIME", "PROFIT", 450_000_000, 4_500_000),
+    ]);
+
+    await buildAtomicRoute(route, conn, USER, 10_000);
+
+    expect(capturedSteps[1].type).toBe("vaultConvert");
+    expect(capturedSteps[1].inputAmount).toBe(0);
+    expect(capturedSteps[1].preBalance).toBe(0); // no holdings, delta = full balance
+  });
+
+  // =========================================================================
+  // 18. Delta mode: split buy — leg-start vault steps get preBalance=0
+  //     Only intermediate vault steps (after AMM) use delta mode.
+  //     Split-route leg-start vault steps use exact mode (no delta).
+  // =========================================================================
+
+  it("split buy: intermediate vaults get preBalance, leg-start vaults get 0", async () => {
+    const connWithBalance = createMockConnectionWithBalances({ CRIME: 200_000_000, FRAUD: 300_000_000 });
+
+    const route = makeRoute("SOL", "PROFIT", 200_000_000, 9_000_000, [
+      step("CRIME/SOL", "SOL", "CRIME", 120_000_000, 540_000_000),
+      step("CRIME/Vault", "CRIME", "PROFIT", 540_000_000, 5_400_000),
+      step("FRAUD/SOL", "SOL", "FRAUD", 80_000_000, 360_000_000),
+      step("FRAUD/Vault", "FRAUD", "PROFIT", 360_000_000, 3_600_000),
+    ], true, [60, 40]);
+
+    await buildAtomicRoute(route, connWithBalance, USER, 10_000);
+
+    // Step 1 (vault, intermediate in leg 1): delta mode with preBalance
+    expect(capturedSteps[1].type).toBe("vaultConvert");
+    expect(capturedSteps[1].inputAmount).toBe(0); // delta mode
+    expect(capturedSteps[1].preBalance).toBe(200_000_000); // CRIME balance
+
+    // Step 3 (vault, intermediate in leg 2): delta mode with preBalance
+    expect(capturedSteps[3].type).toBe("vaultConvert");
+    expect(capturedSteps[3].inputAmount).toBe(0); // delta mode
+    expect(capturedSteps[3].preBalance).toBe(300_000_000); // FRAUD balance
+  });
+
+  // =========================================================================
+  // 19. Delta mode: split sell — leg-start vaults use exact mode (preBalance=0)
+  //     In PROFIT→SOL split sells, the vault is the FIRST step of each leg.
+  //     These must NOT use delta mode — they use exact amounts.
+  // =========================================================================
+
+  it("split sell: leg-start vaults use exact mode (preBalance=0)", async () => {
+    const route = makeRoute("PROFIT", "SOL", 9_000_000, 160_000_000, [
+      step("CRIME/Vault", "PROFIT", "CRIME", 5_400_000, 540_000_000),
+      step("CRIME/SOL", "CRIME", "SOL", 540_000_000, 96_000_000),
+      step("FRAUD/Vault", "PROFIT", "FRAUD", 3_600_000, 360_000_000),
+      step("FRAUD/SOL", "FRAUD", "SOL", 360_000_000, 64_000_000),
+    ], true, [60, 40]);
+
+    await buildAtomicRoute(route, conn, USER, 10_000);
+
+    // Leg 1 vault (step 0): first step, exact mode
+    expect(capturedSteps[0].type).toBe("vaultConvert");
+    expect(capturedSteps[0].inputAmount).toBe(5_400_000); // exact
+    expect(capturedSteps[0].preBalance).toBe(0);
+
+    // Leg 2 vault (step 2): leg start, exact mode
+    expect(capturedSteps[2].type).toBe("vaultConvert");
+    expect(capturedSteps[2].inputAmount).toBe(3_600_000); // exact
+    expect(capturedSteps[2].preBalance).toBe(0);
+  });
+
+  // =========================================================================
+  // 20. Direct 1-hop convert: preBalance=0 (no delta mode for direct converts)
+  // =========================================================================
+
+  it("1-hop direct convert: preBalance is always 0", async () => {
+    const route = makeRoute("CRIME", "PROFIT", 500_000_000, 5_000_000, [
+      step("CRIME/Vault", "CRIME", "PROFIT", 500_000_000, 5_000_000),
+    ]);
+
+    await buildAtomicRoute(route, conn, USER, 10_000);
+
+    expect(capturedSteps).toHaveLength(1);
+    expect(capturedSteps[0].type).toBe("vaultConvert");
+    expect(capturedSteps[0].inputAmount).toBe(500_000_000); // exact, not convert-all
+    expect(capturedSteps[0].preBalance).toBe(0); // no delta mode for 1-hop
   });
 });

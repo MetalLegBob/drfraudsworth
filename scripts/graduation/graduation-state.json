@@ -1,0 +1,85 @@
+{
+  "startedAt": "2026-03-24T15:10:25.669Z",
+  "steps": [
+    {
+      "name": "verify_curves_filled",
+      "completed": true,
+      "txSig": "verification-only",
+      "timestamp": "2026-03-24T15:10:25.898Z"
+    },
+    {
+      "name": "prepare_transition",
+      "completed": true,
+      "txSig": "34KFbzc79PpzQW4ifg2PcMtFL4F6fkskjjhSiw7KMCm44BHMRWwp9MGqAWKGGWhxMrDrUkT4DP729c4uu66WeiKy",
+      "timestamp": "2026-03-24T15:10:38.752Z"
+    },
+    {
+      "name": "withdraw_crime_sol",
+      "completed": true,
+      "txSig": "jjAgMVjFWwMGA7MCRVnXyQNcw3ri9coHhVPtzPXx64i996n2Q1TX4SfEEXD5we8MTV1sPvSDkYXjENe13biYrEC",
+      "timestamp": "2026-03-24T15:10:50.911Z"
+    },
+    {
+      "name": "withdraw_fraud_sol",
+      "completed": true,
+      "txSig": "2ejxk76YU8f5bpARMEU4icqiZzZLsC8TZ6ZqtQASWJuqtT528CTfezjmtriSJMZesNh68DCYKvLyW8J4GzhrU1uy",
+      "timestamp": "2026-03-24T15:11:03.570Z"
+    },
+    {
+      "name": "close_crime_token_vault",
+      "completed": true,
+      "txSig": "xeDTAQuejmgEXBXdqwJh38ghg3EiR1RLkrn9FqqHtsqJWaQKUpe1QiBc33ntNQFdgmvYanqavRGCicJa8p9paXW",
+      "timestamp": "2026-03-24T15:11:16.744Z"
+    },
+    {
+      "name": "close_fraud_token_vault",
+      "completed": true,
+      "txSig": "rrqix6fWno7pFW8Y2s8g5YgnXYaL2V3ViQwyerAje3wwvcUmBzY1XxxyBtgjiPmPkWFd4mBoDc6wEDHs2Nf6RPX",
+      "timestamp": "2026-03-24T15:11:29.562Z"
+    },
+    {
+      "name": "create_crime_sol_pool",
+      "completed": true,
+      "txSig": "5hCB4687HRGjgzfmr65c1BzbbU11cdTf15rn8BHuxmanfgBFYM3mcpG7Nxc4bmVhChsFaNfDrUxG4pcwcS97Nm7M",
+      "timestamp": "2026-03-24T15:11:54.934Z"
+    },
+    {
+      "name": "create_fraud_sol_pool",
+      "completed": true,
+      "txSig": "5RDqJQMRHH9VBub95tWTnnnZis45EqNv727AeAj3q8WNXgvov6mmmiHSuFA6neoekssDSXgEh6pTkuFM3NZfaeqh",
+      "timestamp": "2026-03-24T15:12:20.939Z"
+    },
+    {
+      "name": "whitelist_pool_vaults",
+      "completed": true,
+      "txSig": "5CUPeg7LyKvon1n5SsxWY4Jz4zmEJMoGLQVtmHLnRrdiKkdJkxCEPwZfbbNL4sRtVkx7p4YgGNhGLDBq87ecpYP6",
+      "timestamp": "2026-03-24T15:13:11.129Z"
+    },
+    {
+      "name": "seed_conversion_vault",
+      "completed": true,
+      "txSig": "already-seeded",
+      "timestamp": "2026-03-24T15:13:11.306Z"
+    },
+    {
+      "name": "distribute_crime_tax_escrow",
+      "completed": true,
+      "txSig": "2jTZwru1s66XypZDTvpmDF4ZEqhcstJ6L8EfQGyPrNQtf2LDCQfSVm9zn7Xjh7zwBrvinttiQuejgxuvf6b3ZEM7",
+      "timestamp": "2026-03-24T15:13:24.468Z"
+    },
+    {
+      "name": "distribute_fraud_tax_escrow",
+      "completed": true,
+      "txSig": "2icf7A7jemEuwCko88PiCmQF9Jyy95wARqjqKYE13Qox78cZt7wa9CirgxxbLTBbsqcTmbxixwRzj9ys7HLHMsTc",
+      "timestamp": "2026-03-24T15:13:37.202Z"
+    },
+    {
+      "name": "burn_whitelist_authority",
+      "completed": true,
+      "txSig": "skipped",
+      "timestamp": "2026-03-24T15:13:37.202Z"
+    }
+  ],
+  "crimeWithdrawn": 500444763235,
+  "fraudWithdrawn": 501009624388
+}

@@ -235,6 +235,38 @@ pub fn fraud_mint() -> Pubkey {
     Pubkey::from_str("FraUdp6YhtVJYPxC2w255yAbpTsPqd8Bfhy9rC56jau5").unwrap()
 }
 
+// ---------------------------------------------------------------------------
+// USDC / Rebalancer Integration
+// ---------------------------------------------------------------------------
+
+/// USDC mint address for the active cluster.
+/// Both devnet and mainnet addresses are Circle's canonical SPL Token (not Token-2022)
+/// USDC with 6 decimals.
+///
+/// Devnet  : 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU (Circle devnet faucet USDC)
+/// Mainnet : EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v (Circle mainnet USDC)
+#[cfg(feature = "devnet")]
+pub fn usdc_mint() -> Pubkey {
+    Pubkey::from_str("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU").unwrap()
+}
+
+#[cfg(not(feature = "devnet"))]
+pub fn usdc_mint() -> Pubkey {
+    Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap()
+}
+
+/// Rebalancer Program ID for cross-program USDC accumulator PDA validation.
+///
+/// Same program ID on devnet and mainnet (single deploy).
+/// Source keypair: keypairs/rebalancer-program.json (generated Phase 126)
+pub fn rebalancer_program_id() -> Pubkey {
+    Pubkey::from_str("HSfSLtfXvXCeEEamnhPHo8kv8zYvydBCQzU2EazXqdZf").unwrap()
+}
+
+/// Seed for deriving the USDC accumulator PDA in the Rebalancer Program.
+/// Must match Rebalancer's USDC_ACCUMULATOR_SEED.
+pub const USDC_ACCUMULATOR_SEED: &[u8] = b"usdc_accumulator";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -345,5 +377,30 @@ mod tests {
             fraud_mint().to_string(),
             "78EhS3i2wNM8RQMd8U3xX4eCYm5Xytr2aDcCUH4BzNtx"
         );
+    }
+
+    #[test]
+    fn test_usdc_mint_is_non_default() {
+        assert_ne!(usdc_mint(), Pubkey::default());
+    }
+
+    #[test]
+    fn test_usdc_mint_distinct_from_taxed_mints() {
+        assert_ne!(usdc_mint(), crime_mint());
+        assert_ne!(usdc_mint(), fraud_mint());
+    }
+
+    #[test]
+    fn test_rebalancer_program_id() {
+        assert_eq!(
+            rebalancer_program_id().to_string(),
+            "HSfSLtfXvXCeEEamnhPHo8kv8zYvydBCQzU2EazXqdZf"
+        );
+    }
+
+    #[test]
+    fn test_usdc_accumulator_seed() {
+        assert_eq!(USDC_ACCUMULATOR_SEED, b"usdc_accumulator");
+        assert_eq!(USDC_ACCUMULATOR_SEED.len(), 16);
     }
 }

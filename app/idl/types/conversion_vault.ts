@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/conversion_vault.json`.
  */
 export type ConversionVault = {
-  "address": "9SGsfhxHM7dA4xqApSHKj6c24Bp2rYyqHsti2bDdh263",
+  "address": "5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ",
   "metadata": {
     "name": "conversionVault",
     "version": "0.1.0",
@@ -122,8 +122,12 @@ export type ConversionVault = {
       "docs": [
         "Convert tokens at fixed 100:1 rate with on-chain balance reading and slippage protection.",
         "",
-        "When `amount_in == 0` (convert-all mode), reads the user's on-chain token balance.",
-        "The `minimum_output` parameter enforces slippage protection on the output amount."
+        "Three modes controlled by `amount_in` and `pre_balance`:",
+        "- `amount_in > 0`: Exact mode — convert exactly `amount_in` tokens.",
+        "- `amount_in == 0, pre_balance == 0`: Convert-all — convert entire balance.",
+        "- `amount_in == 0, pre_balance > 0`: Delta mode — convert only the tokens",
+        "deposited since `pre_balance` (e.g. by a preceding AMM swap in an atomic",
+        "multi-hop route). User's pre-existing holdings are untouched."
       ],
       "discriminator": [
         2,
@@ -223,6 +227,10 @@ export type ConversionVault = {
         },
         {
           "name": "minimumOutput",
+          "type": "u64"
+        },
+        {
+          "name": "preBalance",
           "type": "u64"
         }
       ]
@@ -400,7 +408,7 @@ export type ConversionVault = {
           "docs": [
             "The Conversion Vault program — used to look up its ProgramData address."
           ],
-          "address": "9SGsfhxHM7dA4xqApSHKj6c24Bp2rYyqHsti2bDdh263"
+          "address": "5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ"
         },
         {
           "name": "programData",
@@ -471,6 +479,11 @@ export type ConversionVault = {
       "code": 6007,
       "name": "invalidOwner",
       "msg": "Input account not owned by signer"
+    },
+    {
+      "code": 6008,
+      "name": "deltaUnderflow",
+      "msg": "Pre-balance exceeds current balance — stale or incorrect snapshot"
     }
   ],
   "types": [

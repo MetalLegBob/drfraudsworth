@@ -1,6 +1,4 @@
 [toolchain]
-anchor_version = "0.32.1"
-solana_version = "2.3.0"
 
 [features]
 resolution = true
@@ -14,6 +12,7 @@ staking = "12b3t1cNiAUoYLiWFEnFa4w6qYxVAiqCWU7KZuzLPYtH"
 tax_program = "43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj"
 transfer_hook = "CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd"
 conversion_vault = "5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ"
+rebalancer = "HSfSLtfXvXCeEEamnhPHo8kv8zYvydBCQzU2EazXqdZf"
 
 [programs.localnet]
 amm = "5JsSAL3kJDUWD4ZveYXYZmgm1eVqueesTZVdAvtZg8cR"
@@ -26,6 +25,7 @@ stub_staking = "StUbofRk12S7JrEUoQJFjMe6FmACNoRpbNMyjn311ZU"
 tax_program = "43fZGRtmEsP7ExnJE1dbTbNjaP1ncvVmMPusSeksWGEj"
 transfer_hook = "CiQPQrmQh6BPhb9k7dFnsEs5gKPgdrvNKFc5xie5xVGd"
 conversion_vault = "5uawA6ehYTu69Ggvm3LSK84qFawPKxbWgfngwj15NRJ"
+rebalancer = "HSfSLtfXvXCeEEamnhPHo8kv8zYvydBCQzU2EazXqdZf"
 
 [registry]
 url = "https://api.apr.dev"

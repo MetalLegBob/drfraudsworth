@@ -2926,6 +2926,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rebalancer"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "proptest",
+ "sha2 0.10.9",
+ "solana-security-txt",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

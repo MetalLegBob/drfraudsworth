@@ -13,10 +13,11 @@
  *          as normal connect buttons at the top of the list.
  */
 
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { isMobile } from "@/lib/isMobile";
 import { MOBILE_WALLETS } from "@/lib/mobile-wallets";
+import { isBraveBrowser, isBraveWalletActive, areExtensionWalletsAllowed } from "@/lib/brave-detect";
 
 interface ConnectModalProps {
   isOpen: boolean;
@@ -27,6 +28,14 @@ export function ConnectModal({ isOpen, onClose }: ConnectModalProps) {
   const { wallets, select, connecting } = useWallet();
 
   const mobile = useMemo(() => isMobile(), []);
+
+  // Brave browser detection: warn users if Brave Wallet is intercepting extension wallets.
+  // Computed once when modal opens, not reactive (user must reload after changing settings).
+  const [braveState] = useState(() => ({
+    isBrave: isBraveBrowser(),
+    walletActive: isBraveWalletActive(),
+    extensionsAllowed: areExtensionWalletsAllowed(),
+  }));
 
   // Close modal on Escape key
   const handleKeyDown = useCallback(
@@ -111,6 +120,47 @@ export function ConnectModal({ isOpen, onClose }: ConnectModalProps) {
         </p>
 
         <div className="px-6 pb-6 space-y-2">
+          {/* Brave browser warning -- shown when Brave Wallet is intercepting extensions.
+              Brave's default "Default Solana wallet" setting blocks Phantom/Solflare/Backpack.
+              Users must change this setting for extension wallets to work. */}
+          {!mobile && braveState.isBrave && !braveState.extensionsAllowed && (
+            <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 mb-2">
+              <p className="text-sm font-medium text-yellow-400 mb-1">
+                Brave Wallet is overriding your extension wallets
+              </p>
+              <p className="text-xs text-yellow-400/80 leading-relaxed">
+                Brave&apos;s built-in wallet is blocking Phantom, Solflare, and other
+                extension wallets. To fix this:
+              </p>
+              <ol className="text-xs text-yellow-400/80 mt-1 ml-4 list-decimal space-y-0.5 leading-relaxed">
+                <li>
+                  Open{" "}
+                  <span className="font-mono text-yellow-300 select-all">
+                    brave://settings/wallet
+                  </span>
+                </li>
+                <li>
+                  Set &quot;Default Solana wallet&quot; to{" "}
+                  <span className="font-semibold text-yellow-300">
+                    &quot;Brave Wallet (prefer extensions)&quot;
+                  </span>
+                </li>
+                <li>Reload this page</li>
+              </ol>
+            </div>
+          )}
+
+          {/* Brave info banner -- shown when Brave is detected but extensions ARE allowed.
+              Gentle heads-up that Brave Wallet is less reliable than dedicated wallets. */}
+          {!mobile && braveState.isBrave && braveState.extensionsAllowed && braveState.walletActive && (
+            <div className="rounded-lg border border-factory-border bg-factory-surface-elevated p-3 mb-2">
+              <p className="text-xs text-factory-text-muted leading-relaxed">
+                We recommend using Phantom, Solflare, or Backpack instead of
+                Brave&apos;s built-in wallet for the most reliable experience.
+              </p>
+            </div>
+          )}
+
           {mobile ? (
             /* ---- MOBILE: detected wallets first, then deep-link options ---- */
             <>

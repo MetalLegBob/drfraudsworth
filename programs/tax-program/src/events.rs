@@ -13,6 +13,10 @@ pub enum PoolType {
     SolCrime,
     /// SOL-FRAUD pool (taxed)
     SolFraud,
+    /// USDC-CRIME pool (taxed)
+    UsdcCrime,
+    /// USDC-FRAUD pool (taxed)
+    UsdcFraud,
 }
 
 /// Swap direction for events.
@@ -50,6 +54,8 @@ pub struct TaxedSwap {
     pub carnage_portion: u64,
     /// SOL sent to treasury (5%, remainder)
     pub treasury_portion: u64,
+    /// USDC tax sent to Rebalancer accumulator (0 for SOL swaps)
+    pub accumulator_portion: u64,
     /// Epoch number when swap occurred
     pub epoch: u32,
     /// Slot when swap occurred
