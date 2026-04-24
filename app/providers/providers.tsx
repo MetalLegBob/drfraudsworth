@@ -9,6 +9,7 @@ import { ProtocolStateProvider } from "@/providers/ProtocolStateProvider";
 import { ModalRoot } from "@/components/modal/ModalShell";
 import { ToastProvider, ToastContainer, useToast } from "@/components/toast/ToastProvider";
 import { SplashScreen } from "@/components/onboarding/SplashScreen";
+import { TutorialOverlay } from "@/components/onboarding/TutorialOverlay";
 import { QuickMuteButton } from "@/components/audio/QuickMuteButton";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useRef, useMemo } from "react";
@@ -75,6 +76,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                     {children}
                     <ModalRoot />
                     <SplashScreen />
+                    <TutorialOverlay />
                     <QuickMuteButton />
                     <ToastContainer />
                     <WalletConnectionToast />

@@ -137,6 +137,7 @@ function MobileNavItem({ station }: { station: StationMeta }) {
       className="mobile-nav-item"
       onClick={handleTap}
       aria-label={`Open ${station.label}`}
+      data-tutorial-id={`mobile-station-${station.stationId}`}
     >
       <span className="mobile-nav-icon" aria-hidden="true">
         {STATION_ICONS[station.stationId]}

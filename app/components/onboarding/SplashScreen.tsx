@@ -59,6 +59,9 @@ export function SplashScreen() {
       // After fade-out completes, unmount entirely
       setTimeout(() => {
         setPhase('done');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('drfraudsworth:splash-complete'));
+        }
       }, FADE_OUT_MS);
     }, THANKS_PAUSE_MS);
   }, [phase, initAudio]);

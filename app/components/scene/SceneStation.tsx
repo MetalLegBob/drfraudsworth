@@ -72,6 +72,7 @@ export function SceneStation({ station }: SceneStationProps) {
     return (
       <div
         className="absolute z-overlays"
+        data-tutorial-id={`station-${station.stationId}`}
         style={{
           left: `${overlay.left}%`,
           top: `${overlay.top}%`,
@@ -96,6 +97,7 @@ export function SceneStation({ station }: SceneStationProps) {
   return (
     <div
       className="absolute z-overlays"
+      data-tutorial-id={`station-${station.stationId}`}
       style={{
         left: `${overlay.left}%`,
         top: `${overlay.top}%`,
